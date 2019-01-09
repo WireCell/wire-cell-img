@@ -1,0 +1,95 @@
+#+title: Docs for ~wire-cell-img~
+
+* Concepts, data and processes
+
+** Prototype 
+
+The file [[./imaging_flow.pdf]] holds an initial, high-level data flow
+graph showing the top-level algorithms as implemented in the
+[[https://github.com/BNLIF/wire-cell/][Wire-Cell Prototype code base].
+The ~wire-cell-img~ package holds reimplemented, optimized versions
+supplying this basic flow.  Some notes and interpretations on this are
+collected here.  These are WCP terms
+
+- slice :: a [[https://github.com/BNLIF/wire-cell-data/blob/master/inc/WireCellData/Slice.h][Slice]] is filled by a [[https://github.com/BNLIF/wire-cell-sst/blob/d25ebf82b3d580588e3d527ec8258f96ee28bb30/src/ToyuBooNESliceDataSourceg.cxx][ToyuBooNESliceDataSource]].  A slice represents a set of charge measurements (waveform samples) at a common time in a set of electronics channels.  The "time" (~tbin~) of the slice is an integer, implicitly some bin index across the readout time.   The duration of the slice is left fully implicit.
+
+
+- wire :: a [[https://github.com/BNLIF/wire-cell-data/blob/master/inc/WireCellData/GeomWire.h][GeomWire]] represents the logical address and physical location and extent of a segment of a conducting wire.  It is conceptually equivalent to a WCT ~IWire~.
+
+- merged-wire :: (colloquially, aka just "wire"), a [[https://github.com/BNLIF/wire-cell-data/blob/master/inc/WireCellData/MergeGeomWire.h][MergeGeomWire]] represents a collection of ~GeomWire~ objects and an associated ~tbin~ of a time ~Slice~.  Conceptually it represents a 2D region of space.  In the drift-transverse direction it is bounded by two extreme co-planar wires.  In the drift-parallel by drift segment falling in the time slice.
+
+- cell :: (aka, "primitive-cell") a [[https://github.com/BNLIF/wire-cell-data/blob/master/inc/WireCellData/GeomCell.h][GeomCell]] represents a 2D region of space in the drift-transverse plane associated with a single wire from each wire plane.  It has only transverse spacial information and neither time nor charge is associated.
+
+- blob :: (aka "cell" aka "merged-cell"), eg [[https://github.com/BNLIF/wire-cell-data/blob/master/inc/WireCellData/SlimMergeGeomCell.h][SlimMergeGeomCell]] is conceptually a collection of primitive-cells which are contiguous within wire boundaries or equivalently the spacial intersection of a collection of more than one merged-wire.  Unlike a primitive-cell, a blob is associated with transverse space as well as time (drift position) and a measure of charge.
+
+- tiling :: eg [[https://github.com/BNLIF/wire-cell-2dtoy/blob/fe3520c6a807f0600bbea8912b8c45ed18d81311/src/LowmemTiling.cxx#L996][LowmemTiling]] is a process which given a slice generates blobs that surround transverse regions that may have charge (ie, exclude those regions which are very likely to not have any charge).
+
+- parent-wire :: in the process of tiling, a blob may have smaller transverse extent than originally determined by a merged-wire.  The original merged-wire is called a parent-wire to the final, smaller merged-wire.
+
+** Toolkit Interfaces
+
+The WCT provides coverage for the above concepts following a two-part strategy.  First, the data interfaces are made general to minimize their number.  In particular, unique interfaces are not created to encode mere semantic differences.  Second, the process interfaces are made specific in order to deconstruct the algorithms into reasonably smaller ones.  In some cases it is expected that this deconstruction may be counter to optimization so not all processes interfaces must necessarily have concrete implementations.
+
+*** Data interfaces
+
+The WCP was developed in the context of MicroBooNE which has one wire (segment) per channel (degenerate) while a general detector (ProtoDUNE/DUNE) has multiple wires per channel due to wire wrapping.  At the start of tiling, one must begin with "merged-channels" and ultimately/hopefully end with "merged-segments".  
+
+WCT had early support for tiling and provided interfaces to support it.  While occupying fundamental identifiers their implementations are not compatible with WCP concepts and no significant working implementations were ever developed.  Thus the interfaces for ~ICell~ and ~IBlob~ and related are removed and redesigned.
+
+- [[https://github.com/WireCell/wire-cell-iface/blob/master/inc/WireCellIface/IWire.h][IWire]] :: largely equivalent to WCP's ~GeomWire~.  It defines a single physical wire (segment) and its logical connection to a channel.
+- [[https://github.com/WireCell/wire-cell-iface/blob/master/inc/WireCellIface/IChannel.h][IChannel]] :: defines a single detector electronics channel in terms of its logical addressing and association with an ordered list of the ~IWire~ which make up the attached conductor.
+
+In addition to these existing and activity-independent data interfaces these activity-dependent ones are added.
+
+- ISlice :: a collection of channels, a time period and for each
+            channel a metric (scalar value and its uncertainty) of its
+            waveform over the period.  
+
+- ISliceFrame :: the context in which a collection of ISlice are
+                 defined.  Conceptually, this is a "transpose" of an
+                 IFrame.  It holds high level bookkeeping: ident (aka
+                 "event") number, absolute reference time.  
+
+- IStrip :: corresponds to channel level "merged-wire" information, a
+            scalar value ("charge") and its uncertainty, its
+            "boundary" defined as a pair of ~IChannel~ (from which ~IWire~
+            can be retrieved).  plane, derived from ~IChannel~
+
+- IStripSet :: collection of IStrip, t, deltaT, ident.
+
+- IBlob :: localized charge region bounded by one pair of wires
+           (segments) per plane, a solved charge + uncertainty value
+           and a slice time value.  
+
+- IBlobFrame :: the context in which a collection of IBlob are
+                defined.  It is like IFrame for blobs.  It may span
+                zero or more slices.
+
+*** Component interfaces
+
+The WCP component (conceptual) interfaces shown in [[./imaging_flow.pdf]].
+The current WCP implementation is also used to deconstruct algorithms
+into more granular parts and define their interfaces.  Some existing
+interfaces are already applicable.
+
+- IChannelSelector :: produce an output frame containing traces from a an subset of channels of an input frame.
+
+- IFrameFilter :: generic frame modification.
+
+The new interfaces:
+
+- IFrameSlicer :: an ~IFunctionNode~ converting ~IFrame~ to ~ISliceFrame~
+
+
+*** Implementation
+
+Tiling:
+
+ - find crossing points exploiting vector sums along wire directions
+
+ - exclude 2-plane crossing points which are outside N-2 other planes.
+ 
+
+
+
+
