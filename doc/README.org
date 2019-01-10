@@ -4,15 +4,13 @@
 
 ** Prototype 
 
-The file [[./imaging_flow.pdf]] holds an initial, high-level data flow
-graph showing the top-level algorithms as implemented in the
-[[https://github.com/BNLIF/wire-cell/][Wire-Cell Prototype code base].
-The ~wire-cell-img~ package holds reimplemented, optimized versions
-supplying this basic flow.  Some notes and interpretations on this are
-collected here.  These are WCP terms
+The figure below holds an initial, high-level prototype conceptual flow graph showing the top-level algorithms as implemented in the [[https://github.com/BNLIF/wire-cell/][Wire-Cell Prototype code base]].  
+
+[[./imaging_flow.pdf]] 
+
+Some notes and interpretations on this are collected here.  Please not, *these are WCP terms* and not fully carried over to WCT.
 
 - slice :: a [[https://github.com/BNLIF/wire-cell-data/blob/master/inc/WireCellData/Slice.h][Slice]] is filled by a [[https://github.com/BNLIF/wire-cell-sst/blob/d25ebf82b3d580588e3d527ec8258f96ee28bb30/src/ToyuBooNESliceDataSourceg.cxx][ToyuBooNESliceDataSource]].  A slice represents a set of charge measurements (waveform samples) at a common time in a set of electronics channels.  The "time" (~tbin~) of the slice is an integer, implicitly some bin index across the readout time.   The duration of the slice is left fully implicit.
-
 
 - wire :: a [[https://github.com/BNLIF/wire-cell-data/blob/master/inc/WireCellData/GeomWire.h][GeomWire]] represents the logical address and physical location and extent of a segment of a conducting wire.  It is conceptually equivalent to a WCT ~IWire~.
 
@@ -28,42 +26,50 @@ collected here.  These are WCP terms
 
 ** Toolkit Interfaces
 
-The WCT provides coverage for the above concepts following a two-part strategy.  First, the data interfaces are made general to minimize their number.  In particular, unique interfaces are not created to encode mere semantic differences.  Second, the process interfaces are made specific in order to deconstruct the algorithms into reasonably smaller ones.  In some cases it is expected that this deconstruction may be counter to optimization so not all processes interfaces must necessarily have concrete implementations.
+The ~wire-cell-img~ package provides components supplying the conceptual elements of the prototype described above.  They are developed following this general strategy:
+
+1) First, the interface base classes for the data products are made general to minimize their number.  In particular, unique interfaces are not created to encode mere semantic differences (eg, "good" vs "bad" blob).  
+
+2) Second, the process component (node) interfaces are made specific and granular in order to deconstruct the algorithms into reasonably small units. In some cases it is expected that this deconstruction may run counter to optimization so not all processes interfaces must necessarily have concrete implementations.
+
+3) Third, and applicable to both data and processing, the data interfaces intentionally lack functionality.  They are meant to provide ~const~ input to and finalized output from components.  They are not necessarily meant to be useful as "working objects".  Processing components typically should convert their inputs into more convenient and optimized data representations for their internal processing and then pack results into the output data type.
+
+The following diagram illustrates the small zoo of imaging related data and process node interface classes.
+
+[[./nodes.pdf]] 
+
+Note, this is *not* a DFP diagram but it hints at one.  A DFP ~INode~ interface class is drawn as a box and an ~IData~ interface class as an ellipse.  A solid arrow indicates input/output of a data instance to/from the node's ~operator()~ method.  An arrow label of 1 indicates a scalar ~pointer~ and an N indicates a queue (explicit for output, implicit for input).  A dashed arrow indicates that the implementation of the node interface will internally produce some number of instances of the linked data interface.  Finally a gray arrow indicates a line of provenance dependency and the tail label indicates if this is provided by a scalar or vector of /back pointers/.
+Details on each member of this zoo follow.
+
 
 *** Data interfaces
 
-The WCP was developed in the context of MicroBooNE which has one wire (segment) per channel (degenerate) while a general detector (ProtoDUNE/DUNE) has multiple wires per channel due to wire wrapping.  At the start of tiling, one must begin with "merged-channels" and ultimately/hopefully end with "merged-segments".  
+The WCP implementation was developed in the context of the MicroBooNE detector which has one wire (segment) per channel (wire and channels are degenerate) while a general detector (an in particular, ProtoDUNE/DUNE APAs) has multiple wires per channel due to wrapping a continuous wire conductor around a supporting frame.  
+In WCT supports wrapped wires so this degeneracy must be broken.  At the start of "tiling", one must necessarily begin with a "channel-centric" view and ultimately end with "segments-centric" one.  This is reflected in the differentiation of "strip" and "blob".
 
-WCT had early support for tiling and provided interfaces to support it.  While occupying fundamental identifiers their implementations are not compatible with WCP concepts and no significant working implementations were ever developed.  Thus the interfaces for ~ICell~ and ~IBlob~ and related are removed and redesigned.
+In part, the WCP implementation works progressively, producing new data types as its algorithms run in a chain.  However, there are obvious cycles in the prototype flow diagram above and it makes reference to steps where prior input data products must be accessed.  Thus, all major data interfaces will provide *provenance* information in the form of /back pointers/ to the data (interfaces) which produced them.
+
+
+First, a number of data interfaces are already well established for WCT simulation, noise filtering and signal processing:
 
 - [[https://github.com/WireCell/wire-cell-iface/blob/master/inc/WireCellIface/IWire.h][IWire]] :: largely equivalent to WCP's ~GeomWire~.  It defines a single physical wire (segment) and its logical connection to a channel.
 - [[https://github.com/WireCell/wire-cell-iface/blob/master/inc/WireCellIface/IChannel.h][IChannel]] :: defines a single detector electronics channel in terms of its logical addressing and association with an ordered list of the ~IWire~ which make up the attached conductor.
+- [[https://github.com/WireCell/wire-cell-iface/blob/master/inc/WireCellIface/IFrame.h][IFrame]] :: the activity (waveforms) from a finite span of time and detector channels.  The input to imaging is expected to be the output of signal processing and thus the IFrame represents unipolar, positive signals however the frame may densely cover the is span (zero padded) or it may be sparse.
 
-In addition to these existing and activity-independent data interfaces these activity-dependent ones are added.
+The first two interfaces above are "activity-independent" in the sense that they are typically static over a job and do not depend on any detector data.  The ~IFrame~ is in a sense "activity-centric".  The  data interfaces in support of imaging described next tend to be a mix of both categories:
 
-- ISlice :: a collection of channels, a time period and for each
-            channel a metric (scalar value and its uncertainty) of its
-            waveform over the period.  
+- ISlice :: a slice describes the detector activity at the channel level over some span of time.  It provides this information in the form of a map between ~IChannel~ and a value (typically "charge").  As a slice is expected to represent a portion of an ~IFrame~ it carries a back pointer to one from which it was derived.
 
-- ISliceFrame :: the context in which a collection of ISlice are
-                 defined.  Conceptually, this is a "transpose" of an
-                 IFrame.  It holds high level bookkeeping: ident (aka
-                 "event") number, absolute reference time.  
+- IStrip :: a strip describes channel-level activity which is spatially contiguous (in some way).  It provides a pair of matched, ordered vectors, one of channel activity values (aka "charge") and the other the corresponding ~IChannel~.  A strip is expected to be derived from an ~ISlice~ and thus may provide a back pointer to one.
 
-- IStrip :: corresponds to channel level "merged-wire" information, a
-            scalar value ("charge") and its uncertainty, its
-            "boundary" defined as a pair of ~IChannel~ (from which ~IWire~
-            can be retrieved).  plane, derived from ~IChannel~
+- IStripSet :: simply a collection of ~IStrip~ with an ~ident~ number.
 
-- IStripSet :: collection of IStrip, t, deltaT, ident.
+- IBlob :: a blob describes a region of space, within one slice, where activity is localized.  A blob may span one or more planes (but explicitly *not* limited to detectors with exactly three planes).  A blob limits the space of each plane by a pair of co-planar, parallel wires (*segments, not channels*), each represented by an ~IWire~.  Note, both ~IWire~ instances shall be considered to intersect the blob.  That is, they provide an inclusive range.  Each plane may also have an associated back pointer to an ~IStrip~ from which its pair of boundary wires shall be considered to have derived.  
 
-- IBlob :: localized charge region bounded by one pair of wires
-           (segments) per plane, a solved charge + uncertainty value
-           and a slice time value.  
+- IBlobSet :: simply a collection of ~IBlob~ with an ~ident~ number.
 
-- IBlobFrame :: the context in which a collection of IBlob are
-                defined.  It is like IFrame for blobs.  It may span
-                zero or more slices.
+- ICluster :: a cluster is collection of blobs represented as an undirected graph where edges represent "connectivity" between blobs which are in close proximity (by some clustering definition).  FIXME: what else is needed, tbd.
+
 
 *** Component interfaces
 
@@ -78,12 +84,33 @@ interfaces are already applicable.
 
 The new interfaces:
 
-- IFrameSlicer :: an ~IFunctionNode~ converting ~IFrame~ to ~ISliceFrame~
+- ~IFrameSlices~ :: an ~IQueuedoutNode~ converting ~IFrame~ to a number of ~ISlice~ instances.
 
+- ~ISliceStripper~ :: an ~IFunctionNode~ converting an ~ISlice~ to an ~IStripSet~ holding ~IStrip~ instances
+
+- ITiler :: an ~IFunctionNode~ which convert sets of strips into sets of blobs
+
+- IBlobFilter :: an ~IFunctionNode~ which produces an output set of blobs from an input set.
+
+- IBlobClustering :: produces an ~ICluster~ from a set of blobs
 
 *** Implementation
 
-Tiling:
+This section holds notes on implementations.
+
+**** Slicing
+
+The ~SumSlices~ component produces a queued output of slices from an input frame.  The frame is assumed to have any thresholds applied by setting any existing samples to exactly ~0.0~ or by providing a sparse frame.
+
+Note that there is also a ~SumSlicer~ which produces an ~ISliceFrame~ collection of slices which otherwise works the same.  However, it's monolithic coverage does not encourage future fine grained parallelism.
+
+**** Stripping
+
+The stripper is a function node.  It takes in a scalar slice and produces a collection of strips.  This 1-to-N mapping is done because it's a relatively fast operation, does not produce much data and strips most likely always need to be used in a collection spanning a slice and overhead of passing individual strips just to recollect them is silly.  One may break this up in the future if needed.
+
+The ~NaiveStripper~ will produce strips in the simplest way possible by grouping contiguous channels (based on their ~index~) without regards to external information such as handling "bad" channels specially.
+
+**** Tiling
 
  - find crossing points exploiting vector sums along wire directions
 

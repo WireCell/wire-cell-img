@@ -48,7 +48,7 @@ bool Img::SlicesSink::operator()(const ISliceFrame::pointer& sf)
              << " @" << sf->time()/units::s << "s with n=" << slices.size() << endl;
     }
     for (auto slice : slices) {
-        auto cvmap = slice->values();
+        auto cvmap = slice->activity();
         double qtot = 0;
         for (const auto &cv : cvmap) {
             qtot += cv.second;
