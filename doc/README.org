@@ -42,7 +42,7 @@ Note, this is *not* a DFP diagram but it hints at one.  A DFP ~INode~ interface 
 Details on each member of this zoo follow.
 
 
-*** Data interfaces
+** Toolkit Data Interfaces
 
 The WCP implementation was developed in the context of the MicroBooNE detector which has one wire (segment) per channel (wire and channels are degenerate) while a general detector (an in particular, ProtoDUNE/DUNE APAs) has multiple wires per channel due to wrapping a continuous wire conductor around a supporting frame.  
 In WCT supports wrapped wires so this degeneracy must be broken.  At the start of "tiling", one must necessarily begin with a "channel-centric" view and ultimately end with "segments-centric" one.  This is reflected in the differentiation of "strip" and "blob".
@@ -60,62 +60,148 @@ The first two interfaces above are "activity-independent" in the sense that they
 
 - ISlice :: a slice describes the detector activity at the channel level over some span of time.  It provides this information in the form of a map between ~IChannel~ and a value (typically "charge").  As a slice is expected to represent a portion of an ~IFrame~ it carries a back pointer to one from which it was derived.
 
-- IStrip :: a strip describes channel-level activity which is spatially contiguous (in some way).  It provides a pair of matched, ordered vectors, one of channel activity values (aka "charge") and the other the corresponding ~IChannel~.  A strip is expected to be derived from an ~ISlice~ and thus may provide a back pointer to one.
+- IStrip :: a strip describes a subset of ~IChannel~ from one ~IAnodePlane~ and for each a corresponding value.  See ~ISliceStripper~.  (n.b., maybe "stripe" is a better term since the ~IWire~ objects may collectively wrap around an APA.)
 
 - IStripSet :: simply a collection of ~IStrip~ with an ~ident~ number.
 
-- IBlob :: a blob describes a region of space, within one slice, where activity is localized.  A blob may span one or more planes (but explicitly *not* limited to detectors with exactly three planes).  A blob limits the space of each plane by a pair of co-planar, parallel wires (*segments, not channels*), each represented by an ~IWire~.  Note, both ~IWire~ instances shall be considered to intersect the blob.  That is, they provide an inclusive range.  Each plane may also have an associated back pointer to an ~IStrip~ from which its pair of boundary wires shall be considered to have derived.  
+- IBlob :: a blob describes a volume which is delineated along the drift direction by a time slice and transversely by one or more per-plane pitch-intervals.  These pitch-intervals are defined by a pair of ~IWire~ objects which are considered to logically and inclusively-bound the interval.  Physically, the boundary of the interval may be considered to extend further by one-half pitch to either side of the interval.  The number of per-plane pitch-intervals need not be equal to the number of wire planes however, more than one pitch-interval for any one plane is not defined.  For each IWire in each pitch-interval of a blob, there is an associated value (eg "the wire's charge").  The meaning of this value is application specific (ie, whatever the component wants which produces some ~IBlob~).  
 
 - IBlobSet :: simply a collection of ~IBlob~ with an ~ident~ number.
 
 - ICluster :: a cluster is collection of blobs represented as an undirected graph where edges represent "connectivity" between blobs which are in close proximity (by some clustering definition).  FIXME: what else is needed, tbd.
 
 
-*** Component interfaces
+** Toolkit Component Interfaces
 
 The WCP component (conceptual) interfaces shown in [[./imaging_flow.pdf]].
 The current WCP implementation is also used to deconstruct algorithms
 into more granular parts and define their interfaces.  Some existing
 interfaces are already applicable.
 
-- IChannelSelector :: produce an output frame containing traces from a an subset of channels of an input frame.
+- ~IChannelSelector~ :: produce an output frame containing traces from a an subset of channels of an input frame.
 
-- IFrameFilter :: generic frame modification.
+- ~IFrameFilter~ :: generic frame modification.
 
 The new interfaces:
 
 - ~IFrameSlices~ :: an ~IQueuedoutNode~ converting ~IFrame~ to a number of ~ISlice~ instances.
 
-- ~ISliceStripper~ :: an ~IFunctionNode~ converting an ~ISlice~ to an ~IStripSet~ holding ~IStrip~ instances
+- ~ISliceStripper~ :: an ~IFunctionNode~ converting an ~ISlice~ to an ~IStripSet~ holding ~IStrip~ instances.  See ~NaiveStripper~
 
-- ITiler :: an ~IFunctionNode~ which convert sets of strips into sets of blobs
+- ~ITiler~ :: an ~IFunctionNode~ which convert sets of strips into sets of blobs
 
-- IBlobFilter :: an ~IFunctionNode~ which produces an output set of blobs from an input set.
+- ~IBlobFilter~ :: an ~IFunctionNode~ which produces an output set of blobs from an input set.
 
-- IBlobClustering :: produces an ~ICluster~ from a set of blobs
+- ~IBlobClustering~ :: produces an ~ICluster~ from a set of blobs
 
-*** Implementation
+** Implementation notes
 
 This section holds notes on implementations.
 
-**** Slicing
+*** Slicing
 
 The ~SumSlices~ component produces a queued output of slices from an input frame.  The frame is assumed to have any thresholds applied by setting any existing samples to exactly ~0.0~ or by providing a sparse frame.
 
 Note that there is also a ~SumSlicer~ which produces an ~ISliceFrame~ collection of slices which otherwise works the same.  However, it's monolithic coverage does not encourage future fine grained parallelism.
 
-**** Stripping
+*** Stripping
 
-The stripper is a function node.  It takes in a scalar slice and produces a collection of strips.  This 1-to-N mapping is done because it's a relatively fast operation, does not produce much data and strips most likely always need to be used in a collection spanning a slice and overhead of passing individual strips just to recollect them is silly.  One may break this up in the future if needed.
+The stripper is a function node.  It takes in a single slice and produces a collection of strips.  This 1-to-N mapping is done because it's a relatively fast operation, does not produce much data and all strips corresponding to a slice most likely always need to be used together and the overhead of passing individual strips through the execution graph just to recollect them is silly.  If a reason to have individual strip flow is found, one may break this up in the future.
 
-The ~NaiveStripper~ will produce strips in the simplest way possible by grouping contiguous channels (based on their ~index~) without regards to external information such as handling "bad" channels specially.
+The ~NaiveStripper~ will produce strips in the simplest way possible.  It does not provide any special support for dead channels or other detector pathology.  However, it does handle arbitrary number of wire planes and treats generically wire planes which may or may not wrap.  The algorithm is rather simple and based on forming a graph with two types of edges.  First, it forms an edge from each ~IChannel~ in the input slice to each ~IWire~ that feeds that channel.  It then walks all ~IWire~ in each wire plane in the anode in order of its wire-in-plane index and adds an edge from an ~IWire~ to its neighbor if both are associated with an input channel.  A wire is considered a neighbor if it is within the configured "gap" parameter.  By default, a wire must have a WIP index one higher to be considered a neighbor.  Once this graph is constructed then all /connected subgraphs/ are found.  Each such subgraph spans a strip.
 
-**** Tiling
+*** Tiling
 
- - find crossing points exploiting vector sums along wire directions
+Tiling produces an initial set of blobs from a set of strips.  Initially, some of these blobs may be false solutions or "ghosts" which to some extent can be removed later.  The blobs produced should not cover any wires which conclusively have zero charge (ie, wires attached to working channels and which had no measured charge above threshold).
 
- - exclude 2-plane crossing points which are outside N-2 other planes.
- 
+Within that basic expectation, tiling may naively be implemented as a $N^n$ process where $N$ is the number of wires per plane and $n$ is the number of planes.  However, substantial optimization is possible if the wire planes have certain uniform geometry.  Specifically, if all wires in a given plane share a single angle and a single perpendicular distance between any two neighbors (the pitch) we may define these quantities:
+
+- $r^{lm}_{ij}$ :: a vector giving the absolute location of the crossing point if the $i^{th}$ wire in plane $l$ and the $j^{th$ wire in plane $m$, $l \ne m$.
+
+- $w^{lm}$ :: a vector giving the relative displacement between the intersections of a pair of neighboring wires of plane $m$ with a wire in plane $l$.
+
+- $p^l$ :: a vector giving the distance along the pitch direction between a pair of neighboring wires in plane $l$.  Pitch direction is coplanar with and orthogonal to the wires in a plane.
+
+- $c^l$ :: a vector giving the absolute location of the center point of wire $i=0$ in plane $l$.
+
+Then, in terms of these quantities the following function-primitives will prove useful and may be implemented with minimal computation:
+
+- zero crossing :: calculates $r^{lm}_{00}$ solving a linear system of equations defining wire $i=0$ in plane $l$ and $j=0$ in $m$.  Note, this point is not, in general expected to be physically inside the sensitive cross sectional area of the wire plane.
+
+- wire crossing :: the crossing point of any wire $i$ from plane $l$ and any wire $j$ from plane $m$ as $r^{lm}_{ij} = r^{lm}_{00} + i w^{lm} + j w^{ml}$
+
+- pitch location :: the distance along the pitch direction of plane $n$ to a wire crossing formed by wires in two other planes $r^{lm}_{ij}$.  This is $P^{lmn}_{ij} = (r^{lm}_{ij} - c^n) \cdot \hat{p}^n$.  See note below.
+
+- pitch index :: the index of a wire in plane $n$ which is nearest to a crossing point between two wires in two other planes, $I^{lmn}_ij} = P^{lmn}_{ij}/|p^n|$. 
+
+Notes:
+
+- Expanding $P^{lmn}_{ij} = r^{lm}_{00}\cdot \hat{p}^n + iw^{lm} \cdot \hat{p}^n + jw^{ml} \cdot \hat{p}^n - c^n \cdot \hat{p}^n$ it is found to be of a very simple form depending on only $i$ and $j$ and scalar constants which depend only on the static wire geometry of the three planes involved.
+
+- As the planes $l$, $m$ and $n$ are arbitrary, this formalism may be expanded to any number of planes.
+
+One deficiency in this formalism that that tiling is in part asking the question "which wires of plane $n$ overlap with point $r^{lm}_{ij}$?".  In actual detectors, generally no three wires actually overlap.  Thus "overlap" requires to consider some finite width in which a wire is centered.  The natural choice is  to define a "half-way line" which divides the region around a wire such that it is shared equally between two neighbors.  Thus, each wire has two half-way lines which it shared (except at the wire plane edge) with its neighbors.
+
+The above formalism can be "shifted" by one half pitch in each plane to consider half-way lines as central instead of their wires.  This would require any overlap calculations to carry relationships between wires and half-way lines and worry about being "inside" or "outside" any given wire region.  
+
+Instead, one can apply a finite width requirement by modifying the /pitch index/ calculation so that instead of simple integer truncation one enlarges and reduces the /pitch location/ by the desired amount.  This amount may be arbitrary in order to allow either more generous or more stringent inclusion of any given wire from the tertiary plane $n$.
+
+
+
+
+The ~NaiveTiler~ makes the assumption that all channels are "good".  However, it is general in the sense that it may operate on detectors with arbitrary number of planes (at least more than one) and supports wrapped and unwrapped wire conductors.  
+
+Some working notes:
+
+- for any two wire planes $i$ and $j$ one can construct a "unit wire vector" $w_i$ which run along the $i$ wire direction and which spans the points of crossing of two neighboring $j$ wires.  Likewise, one may define $w_j$.
+
+- find the intersection point, $r_{00}$, between the wires from each plane with WIP index 0 wires using a system of linear equations.
+
+- then, the intersection of wire with WIP index $M$ from plane $i$ with and WIP index $N$ for plane $j$ may be found with the vector equation $r_{NM} = r_{00} + N w_i + M w_j$.
+
+- to form a blob, note each strip provides one or more pitch-intervals and a strip set spans many planes and their data needs to be prepared once for many fast lookups.
+
+- group all pitch-intervals of all strips in a set by their ~WirePlaneId~ (ie, anode, face, plane).
+
+- within each group form a fast lookup from discrete pitch values to the pitch interval (its ~IWire~ pair and parent ~IStrip~).  If pitch-intervals were not discrete a [[https://en.wikipedia.org/wiki/Interval_tree][interval tree]] could be formed.  However, as they are discrete and the number of ~IWire~ per plane is not absurdly large, a simple ~vector<SOMETHING*>~ can be used where all elements which cover an interval point back to some common bookkeeping object and all other elements are null/false.
+
+- how is a point $r$ inside a pitch-interval of Plane $i$?  Find vector from pitch origin of plane $i$ to $r$ and dot-product with unit pitch vector $p_i$, divide by pitch magnitude and round.  Use resulting integer to check ~vector<SOMETHING*>~.
+
+  - maybe faster exploiting the fact that all points checked are intersections between a pair of plane wires: calculate this index analytically with arbitrary $r_{MN}$ once.
+
+- must also check if a crossing point is inside the wire plane active area.
+
+Progressive algorithm: 
+
+- Construct "slats" from input strips.  A slat is essentially an ordered vector of ~IWire~.
+- Group slats by their wireplaneid into pitch-order collections.
+- For each anode and for each face
+  - For slat0 in plane 0:
+    - For slat1 in plane 1:
+      - Find points of intersection (PoI) inside sensitive area, if empty, continue
+      - Find plane2 pitch-interval for PoI set.
+      - For slat2 in plane 2:
+        - If slat2 not overlap with PoI set, continue
+        - If slat2 fully overlap wit PoI set, save PoI, continue to next slat1
+        - Check partial overlap, recompute PoI set and its pitch-interval. <---
+      - For slat3 in plane 3:
+        - ....
+      - ....
+
+      - Save N-slats and resulting PoI to blob
+
+Pair-wise algorithm
+
+- Construct "slats" from input strips.  A slat is essentially an ordered vector of ~IWire~.
+- Group slats by their wireplaneid into pitch-order collections.
+- For each anode and for each face
+  - For {i,(i+1)%n} where n is number of planes:
+    - For slati in plane i:
+      - For slatj in plane j:
+        - Find points of intersection (PoI) inside sensitive area, if empty, continue
+        - Save PoI to container indexed by {i,j} 
+  - For {i,(i+1)%n} where n is number of planes:
+    - For {j,(j+1)%n} j>i, where n is number of planes:    
 
 
 

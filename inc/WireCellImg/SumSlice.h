@@ -1,4 +1,7 @@
-/* Uniformly slice a frame by charge summation 
+/* Note, this file should not be #include'd into WCT components
+ * directly but may be included into tests.
+
+   Uniformly slice a frame by charge summation 
 
    This file provides two variants.  
 
@@ -33,8 +36,10 @@
 namespace WireCell {
     namespace Img {
 
-        // concrete ISlice
-        class SumSlice;
+        namespace Data {
+            // ISlice class is held temporarily as concrete.
+            class Slice;
+        }
 
         class SumSliceBase : public IConfigurable {
         public:
@@ -47,7 +52,7 @@ namespace WireCell {
 
         protected:
 
-            typedef std::map<size_t, SumSlice*> slice_map_t;
+            typedef std::map<size_t, Data::Slice*> slice_map_t;
             void slice(const IFrame::pointer& in, slice_map_t& sm);
 
         private:
@@ -76,5 +81,4 @@ namespace WireCell {
 
     }
 }
-
 #endif

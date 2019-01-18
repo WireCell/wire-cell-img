@@ -1,6 +1,11 @@
 #include "WireCellImg/NaiveStripper.h"
+#include "WireCellImg/ImgData.h"
 
 #include "WireCellUtil/NamedFactory.h"
+
+#include <boost/graph/graph_traits.hpp>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/connected_components.hpp>
 
 
 WIRECELL_FACTORY(NaiveStripper, WireCell::Img::NaiveStripper,
@@ -17,8 +22,8 @@ WireCell::Configuration Img::NaiveStripper::default_configuration() const
 {
     Configuration cfg;
 
-    // The number of channels to be lacking any activity in a slice to
-    // be considere a gap and leading to a new strip.
+    // The number of intersticial wires which must exist without
+    // activity to consider two wires to be non-adjacent.
     cfg["gap"] = 1;
 
     return cfg;
@@ -30,40 +35,6 @@ void Img::NaiveStripper::configure(const WireCell::Configuration& cfg)
     m_gap = get(cfg, "gap", 1);
 }
 
-class NaiveStrip : public IStrip {
-    int m_ident;
-    vector_t m_values;
-
-public:
-    NaiveStrip(int ident) : m_ident(ident) {}
-
-    int ident() const { return m_ident; }
-    vector_t values() const { return m_values; }
-
-    // these methods may be used prior to internment into IStrip::pointer
-
-    void append(IChannel::pointer ich, value_t value) {
-        m_values.push_back(make_pair(ich, value));
-    }
-
-};
-class NaiveStripSet : public IStripSet {
-    int m_ident;
-    IStrip::vector m_strips;
-
-public:
-
-    NaiveStripSet(int ident) : m_ident(ident) {}
-    int ident() const { return m_ident; }
-    IStrip::vector strips() const { return m_strips; }
-    
-    // use before interning
-
-    void push_back(const IStrip::pointer& s) { m_strips.push_back(s); }
-    size_t size() const { return m_strips.size(); }
-
-};
-
 
 bool Img::NaiveStripper::operator()(const input_pointer& slice, output_pointer& out)
 {
@@ -72,35 +43,88 @@ bool Img::NaiveStripper::operator()(const input_pointer& slice, output_pointer& 
         return true;            // eos
     }
 
-    NaiveStripSet* nss = new NaiveStripSet(slice->ident());
+    // The graph connects channels to attached wires and wires to
+    // their adjacent neighbor in the plain and along the positive
+    // pitch direction.  
 
-    // Ordered indexing of slice's channel values by channel 
-    typedef std::map<size_t, ISlice::pair_t> chval_index_t;
-    typedef std::unordered_map<int, chval_index_t> plane_chval_index_t;
-    plane_chval_index_t crazy;
+    typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS> graph_t;
+    typedef boost::graph_traits<graph_t>::vertex_descriptor vertex_t;
+    graph_t graph;
+
+    // Boost graph uses simple numbers as the "node object".  We could
+    // attach vertex properties to nodes to hold either the IWire or
+    // the IChannel+charge values or we can keep or own lookup tables.
+    // The former is probably faster but for now, we these lookups out
+    // in the open.
+    std::unordered_map<IWire::pointer, IChannel::pointer> wire_to_chan;
+    std::unordered_map<IChannel::pointer, vertex_t> chan_to_node;
+    std::unordered_map<vertex_t, ISlice::pair_t> node_to_chanval;
+    std::unordered_map<int, IWireIndexSet> hit_wires;
+
+    // Fill channel nodes in graph and group wires by plane 
     for (const auto& cv : slice->activity()) {
         auto ichan = cv.first;
-        const auto value = cv.second;
-        const auto pid = ichan->planeid();
-        crazy[pid.ident()][ichan->index()] = make_pair(ichan, value);
-    }
-
-    // Now unroll the per-plane, ordered index
-    for (const auto& pchv : crazy) {
-        const auto& indch = pchv.second;
-        NaiveStrip* current_strip = nullptr;
-        size_t last_ind = 0;
-        for (const auto& ind_cv : indch) {
-            const size_t this_ind = ind_cv.first;
-            if (!current_strip or this_ind - last_ind > m_gap) {
-                current_strip = new NaiveStrip(nss->size());
-                nss->push_back(IStrip::pointer(current_strip));
-            }
-            const auto& cv = ind_cv.second;
-            current_strip->append(cv.first, cv.second);
+        auto node = boost::add_vertex(graph);
+        chan_to_node[ichan] = node;
+        node_to_chanval[node] = cv;
+        for (auto iwire : ichan->wires()) {
+            const auto pid = iwire->planeid();
+            hit_wires[pid.ident()].insert(iwire);
+            wire_to_chan[iwire] = ichan;
         }
     }
 
-    out = IStripSet::pointer(nss);
+    // Loop over ordered wires per plane and make edges.
+    for (const auto& phw : hit_wires) {
+        int last_ind = -1;
+        vertex_t last_wire = 0;
+        for (auto iwire : phw.second) {
+            auto ichan = wire_to_chan[iwire];
+            vertex_t chan_node = chan_to_node[ichan];
+            vertex_t wire_node = boost::add_vertex(graph);
+            const int this_index = iwire->index();
+
+            // no matter what, chan->node.
+            boost::add_edge(chan_node, wire_node, graph);
+
+            const size_t dind = this_index - last_ind;
+            if (last_ind >= 0 and dind <= m_gap) {
+                boost::add_edge(last_wire, wire_node, graph);
+            }
+            last_ind = this_index;
+            last_wire = wire_node;
+        }
+    }
+
+    // Here's the heavy lifing.  Strips are understood to be formed as
+    // the channels found by looking for the "connected subgraphs".
+    // Like the graph itself, this neesds some looksup to translate
+    // between Boost Graph's subgraph index and a corresponding strip.
+    std::unordered_map<vertex_t, int> subclusters;
+    std::unordered_map<int, Img::Data::Strip*> cluster_to_strip;
+    size_t num = boost::connected_components(graph, boost::make_assoc_property_map(subclusters));
+    std::cerr << "Img::NaiveStripper: found " << num << " strips in slice " << slice->ident() << std::endl;
+
+    // Collect channels of like cluster number into strips
+    for (auto& p : subclusters) {
+        auto ncvit = node_to_chanval.find(p.first);
+        if (ncvit == node_to_chanval.end()) {
+            continue;
+        }
+        auto& cv = ncvit->second;
+        auto strip = cluster_to_strip[p.second];
+        if (!strip) {
+            cluster_to_strip[p.second] = strip = new Img::Data::Strip(p.first);
+        }
+        strip->append(cv.first, cv.second);
+        std::cout << "\tch: " << cv.first->ident() << " with q=" << cv.second << std::endl;
+    }
+    
+    auto sliceset = new Img::Data::StripSet(slice->ident());
+    for (auto ss : cluster_to_strip) {
+        sliceset->push_back(IStrip::pointer(ss.second));
+    }
+
+    out = IStripSet::pointer(sliceset);
     return true;
 }

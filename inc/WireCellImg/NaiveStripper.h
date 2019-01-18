@@ -1,4 +1,9 @@
-/** Make strips based on channel index */
+/** Make strips based on channel index.
+
+    This component is "naive" because it does not consider dead channels or
+    other real world detector pathology.
+
+ */
 #ifndef WIRECELLIMG_NAIEVESTRIPPER
 #define WIRECELLIMG_NAIEVESTRIPPER
 
