@@ -112,97 +112,60 @@ The ~NaiveStripper~ will produce strips in the simplest way possible.  It does n
 
 *** Tiling
 
-Tiling produces an initial set of blobs from a set of strips.  Initially, some of these blobs may be false solutions or "ghosts" which to some extent can be removed later.  The blobs produced should not cover any wires which conclusively have zero charge (ie, wires attached to working channels and which had no measured charge above threshold).
+Tiling is the process of determine regions ("blobs") which likely surround charge given wires which likely measured that charge as determined by their channels reading activity in the given time slice.  Given a detector with wrapped wires it is not trivial to know on which wire current was induced and thus one must initially assume all wires attached to a "hit" channel may have had nearby charge.  This then leads to "ghosts" which must be later removed.  However a strong negative remains true: if a working channel measures no activity (above threshold) then all attached wires should not contribute to any "blobs".
 
-Within that basic expectation, tiling may naively be implemented as a $N^n$ process where $N$ is the number of wires per plane and $n$ is the number of planes.  However, substantial optimization is possible if the wire planes have certain uniform geometry.  Specifically, if all wires in a given plane share a single angle and a single perpendicular distance between any two neighbors (the pitch) we may define these quantities:
+Building "blobs" is then an exercise of identifying regions in the plane which have nearby active wires from all planes.  Naive tiling algorithms can be rather expensive with worse case being $N^{2+3n}$ where $N is the number of wires per plane and $n$ is the number of planes.   However, substantial optimization is possible if the wire planes have certain uniform geometry.  Specifically, if all wires in a given plane share a single angle and a single perpendicular distance between any two neighbors (the pitch) it is possible to construct geometric queries which require constant time to satisfy after a brief one time calculation of some coefficients.
 
-- $r^{lm}_{ij}$ :: a vector giving the absolute location of the crossing point if the $i^{th}$ wire in plane $l$ and the $j^{th$ wire in plane $m$, $l \ne m$.
+To be general, we dispense with the notion of physical wires and instead discuss in terms of abstract rays which are line segments defined in terms of their 3D end points.  Rays may be associated with wire segments, with the line running half way between two wires or with vertical/horizontal bounds of the active area of a wire plane.   
+Conceptually, we will define two classes of coordinate systems in addition to a shared, global Cartesian system.  
 
-- $w^{lm}$ :: a vector giving the relative displacement between the intersections of a pair of neighboring wires of plane $m$ with a wire in plane $l$.
+First, an ordered pair of parallel rays define an orthogonal coordinate system (ROCS) which may be translated and rotated about one axis of the global system.  We define:
 
-- $p^l$ :: a vector giving the distance along the pitch direction between a pair of neighboring wires in plane $l$.  Pitch direction is coplanar with and orthogonal to the wires in a plane.
+- $c^l$ :: the location of the center of the first ray in ROCS $l$, this first ray is indexed as $i=0$.
 
-- $c^l$ :: a vector giving the absolute location of the center point of wire $i=0$ in plane $l$.
+- $p^l$ :: a vector which connects and is mutually orthogonal to both rays in ROCS $l$ and pointing from the first to the second ray (which is considered to be indexed as $i=1$.
 
-Then, in terms of these quantities the following function-primitives will prove useful and may be implemented with minimal computation:
+The direction of $p^l$ defines an axis for ROCS $l$ and its magnitude defines a length scale.  The second axis is take as in the mutual direction of the rays in ROCS $l$ and no particular length scale is identified yet.
 
-- zero crossing :: calculates $r^{lm}_{00}$ solving a linear system of equations defining wire $i=0$ in plane $l$ and $j=0$ in $m$.  Note, this point is not, in general expected to be physically inside the sensitive cross sectional area of the wire plane.
+A second ROCS $m$ is now considered which has rays at some non-zero angle with ROCS $l$.  The set of crossing points of rays from each form a regular, non-orthogonal 2D grid.  We define:
 
-- wire crossing :: the crossing point of any wire $i$ from plane $l$ and any wire $j$ from plane $m$ as $r^{lm}_{ij} = r^{lm}_{00} + i w^{lm} + j w^{ml}$
+- $r^{lm}_{ij}$ :: a vector giving the location (expressed in global Cartesian coordinates) of the crossing point of the $i^{th}$ ray in ROCS $l$ and the $j^{th$ ray in ROCS $m$, $l \ne m$ and with one set of rays having a non-zero angle w.r.t. the other.
 
-- pitch location :: the distance along the pitch direction of plane $n$ to a wire crossing formed by wires in two other planes $r^{lm}_{ij}$.  This is $P^{lmn}_{ij} = (r^{lm}_{ij} - c^n) \cdot \hat{p}^n$.  See note below.
+- $w^{lm}$ :: a relative vector giving the displacement between the intersections of a pair of neighboring rays of ROCS $m$ with a ray in ROCS $l$.  That is, this vector allows one to "hop" along a ray in $l$ from one crossing point of a ray in $m$ to the crossing point of its neighbor.
 
-- pitch index :: the index of a wire in plane $n$ which is nearest to a crossing point between two wires in two other planes, $I^{lmn}_ij} = P^{lmn}_{ij}/|p^n|$. 
+Without loss of generality one ray in each ROCS is given index $i = 0$ and it is then easy to calculate pair-wise crossing points for the "zero rays" of two ROCS or the zero crossing of $l$ and $m$, $r^{lm}_{00}$.  It is then trivial to define the crossing point of ray $i$ from ROCS $l$ and any ray $j$ from ROCS $m$ as $r^{lm}_{ij} = r^{lm}_{00} + j w^{lm} + i w^{ml}$. 
 
-Notes:
+In forming "blobs" it is typical that one must test if a particular point is "inside" some boundary defined by a pair of rays.  This is equivalent to calculating the pitch location of the point in the ROCS coordinate system.  If the only points which may be tested are themselves calculated as $r^{lm}_{ij}$ then one evaluate the pitch location in a third ROCS in terms of the original crossings of two other ROCS, $P^{lmn}_{ij} = (r^{lm}_{ij} - c^n) \cdot \hat{p}^n$.  
+Expanding, one arrives at, $P^{lmn}_{ij} = r^{lm}_{00}\cdot \hat{p}^n + jw^{lm} \cdot \hat{p}^n + iw^{ml} \cdot \hat{p}^n - c^n \cdot \hat{p}^n$.  The tensor dimensions are that of the number of ROCS considered.  
 
-- Expanding $P^{lmn}_{ij} = r^{lm}_{00}\cdot \hat{p}^n + iw^{lm} \cdot \hat{p}^n + jw^{ml} \cdot \hat{p}^n - c^n \cdot \hat{p}^n$ it is found to be of a very simple form depending on only $i$ and $j$ and scalar constants which depend only on the static wire geometry of the three planes involved.
-
-- As the planes $l$, $m$ and $n$ are arbitrary, this formalism may be expanded to any number of planes.
-
-One deficiency in this formalism that that tiling is in part asking the question "which wires of plane $n$ overlap with point $r^{lm}_{ij}$?".  In actual detectors, generally no three wires actually overlap.  Thus "overlap" requires to consider some finite width in which a wire is centered.  The natural choice is  to define a "half-way line" which divides the region around a wire such that it is shared equally between two neighbors.  Thus, each wire has two half-way lines which it shared (except at the wire plane edge) with its neighbors.
-
-The above formalism can be "shifted" by one half pitch in each plane to consider half-way lines as central instead of their wires.  This would require any overlap calculations to carry relationships between wires and half-way lines and worry about being "inside" or "outside" any given wire region.  
-
-Instead, one can apply a finite width requirement by modifying the /pitch index/ calculation so that instead of simple integer truncation one enlarges and reduces the /pitch location/ by the desired amount.  This amount may be arbitrary in order to allow either more generous or more stringent inclusion of any given wire from the tertiary plane $n$.
+Finally, one may divide this tensor by the magnitude of the pitch of the third ROCS in order to find the index of the closest ray.  This pitch index is $I^{lmn}_ij} = P^{lmn}_{ij}/|p^n|$. 
 
 
 
 
-The ~NaiveTiler~ makes the assumption that all channels are "good".  However, it is general in the sense that it may operate on detectors with arbitrary number of planes (at least more than one) and supports wrapped and unwrapped wire conductors.  
 
-Some working notes:
+*** Outline of blob finding.
 
-- for any two wire planes $i$ and $j$ one can construct a "unit wire vector" $w_i$ which run along the $i$ wire direction and which spans the points of crossing of two neighboring $j$ wires.  Likewise, one may define $w_j$.
+- Given set of rays each representing a "hit" wires on one APA face 
+  - find their 3D *bounding box*
+  - organize rays into sparse per-plane vectors indexed by their WIP index
 
-- find the intersection point, $r_{00}$, between the wires from each plane with WIP index 0 wires using a system of linear equations.
-
-- then, the intersection of wire with WIP index $M$ from plane $i$ with and WIP index $N$ for plane $j$ may be found with the vector equation $r_{NM} = r_{00} + N w_i + M w_j$.
-
-- to form a blob, note each strip provides one or more pitch-intervals and a strip set spans many planes and their data needs to be prepared once for many fast lookups.
-
-- group all pitch-intervals of all strips in a set by their ~WirePlaneId~ (ie, anode, face, plane).
-
-- within each group form a fast lookup from discrete pitch values to the pitch interval (its ~IWire~ pair and parent ~IStrip~).  If pitch-intervals were not discrete a [[https://en.wikipedia.org/wiki/Interval_tree][interval tree]] could be formed.  However, as they are discrete and the number of ~IWire~ per plane is not absurdly large, a simple ~vector<SOMETHING*>~ can be used where all elements which cover an interval point back to some common bookkeeping object and all other elements are null/false.
-
-- how is a point $r$ inside a pitch-interval of Plane $i$?  Find vector from pitch origin of plane $i$ to $r$ and dot-product with unit pitch vector $p_i$, divide by pitch magnitude and round.  Use resulting integer to check ~vector<SOMETHING*>~.
-
-  - maybe faster exploiting the fact that all points checked are intersections between a pair of plane wires: calculate this index analytically with arbitrary $r_{MN}$ once.
-
-- must also check if a crossing point is inside the wire plane active area.
-
-Progressive algorithm: 
-
-- Construct "slats" from input strips.  A slat is essentially an ordered vector of ~IWire~.
-- Group slats by their wireplaneid into pitch-order collections.
-- For each anode and for each face
-  - For slat0 in plane 0:
-    - For slat1 in plane 1:
-      - Find points of intersection (PoI) inside sensitive area, if empty, continue
-      - Find plane2 pitch-interval for PoI set.
-      - For slat2 in plane 2:
-        - If slat2 not overlap with PoI set, continue
-        - If slat2 fully overlap wit PoI set, save PoI, continue to next slat1
-        - Check partial overlap, recompute PoI set and its pitch-interval. <---
-      - For slat3 in plane 3:
-        - ....
-      - ....
-
-      - Save N-slats and resulting PoI to blob
-
-Pair-wise algorithm
-
-- Construct "slats" from input strips.  A slat is essentially an ordered vector of ~IWire~.
-- Group slats by their wireplaneid into pitch-order collections.
-- For each anode and for each face
-  - For {i,(i+1)%n} where n is number of planes:
-    - For slati in plane i:
-      - For slatj in plane j:
-        - Find points of intersection (PoI) inside sensitive area, if empty, continue
-        - Save PoI to container indexed by {i,j} 
-  - For {i,(i+1)%n} where n is number of planes:
-    - For {j,(j+1)%n} j>i, where n is number of planes:    
+- For each wire plane
 
 
 
+Other functions:
+
+- bounding box :: given a set of hit wires in a face, find the 2D bounding box (BB) of all their endpoints.  All "real" crossing points must be in this BB.  In a sense, the horizontal and vertical sides are a wire bounding (WB) pair.
+
+
+Blobs are constructed progressively and may split along the way.  One plane at a time is considered and wire bounds are applied to previously existing blobs.  
+
+First pass is special in that every WB pair makes a blob and each wire endpoint is a "crossing point" as they are guaranteed to coincide with the BB.
+
+Second pass with another plane loops over previous blobs and for each finds the WB pairs that overlap (fast via *pitch location*  and *pitch index* functions and previous wire indexing).  
+
+For each new WB pair, find wire crossing points with all existing WB wires in the blob and remove any which are outside the old blobs boundary (including BB).  Also remove all old crossing points which are not inside the new WB.  Repeat this for each new WB on the original old blob.  Save new blobs.  Then move on to next old blob.  At end, toss old blobs, save new ones.
+
+Third pass, do the same.
 
