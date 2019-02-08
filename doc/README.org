@@ -1,4 +1,4 @@
-#+title: Docs for ~wire-cell-img~
+#+title: Notes for ~wire-cell-img~
 
 * Concepts, data and processes
 
@@ -110,7 +110,7 @@ The stripper is a function node.  It takes in a single slice and produces a coll
 
 The ~NaiveStripper~ will produce strips in the simplest way possible.  It does not provide any special support for dead channels or other detector pathology.  However, it does handle arbitrary number of wire planes and treats generically wire planes which may or may not wrap.  The algorithm is rather simple and based on forming a graph with two types of edges.  First, it forms an edge from each ~IChannel~ in the input slice to each ~IWire~ that feeds that channel.  It then walks all ~IWire~ in each wire plane in the anode in order of its wire-in-plane index and adds an edge from an ~IWire~ to its neighbor if both are associated with an input channel.  A wire is considered a neighbor if it is within the configured "gap" parameter.  By default, a wire must have a WIP index one higher to be considered a neighbor.  Once this graph is constructed then all /connected subgraphs/ are found.  Each such subgraph spans a strip.
 
-*** Tiling
+*** Tiling (ray clustering, layer overlaps)
 
 Tiling is the process of determine regions ("blobs") which likely surround charge given wires which likely measured that charge as determined by their channels reading activity in the given time slice.  Given a detector with wrapped wires it is not trivial to know on which wire current was induced and thus one must initially assume all wires attached to a "hit" channel may have had nearby charge.  This then leads to "ghosts" which must be later removed.  However a strong negative remains true: if a working channel measures no activity (above threshold) then all attached wires should not contribute to any "blobs".
 
@@ -141,31 +141,41 @@ Expanding, one arrives at, $P^{lmn}_{ij} = r^{lm}_{00}\cdot \hat{p}^n + jw^{lm} 
 Finally, one may divide this tensor by the magnitude of the pitch of the third ROCS in order to find the index of the closest ray.  This pitch index is $I^{lmn}_ij} = P^{lmn}_{ij}/|p^n|$. 
 
 
+*** Slice Overlaps
+
+Tiling leaves ghosts.  One way to remove them is to check each cluster against those produced from a neighboring time slice and remove any that lack an "overlaps".  To leverage the optimization techniques developed for tiling above, the definition of overlap should be expressed in the same terms of two-layer corners and their pitch distance in a third layer which can then be compared against pitch intervals in the layers of clusters in the "other" time slice. 
+
+In checking for overlap of clusters between two slices there is a danger of naively creating an $\mathcal{O}(N^2)$ operation, where $N$ is the number of clusters in each slice.  Even with the optimizations developed for tiling one can exploit the ordering of wires (rays) in a plane (layer).  
+
+- fast overlap :: To perform this, a fast lookup is needed which goes from a pitch index range to the clusters which overlap it.  This is similar to an Activity but which holds a reference to its cluster so that if an overlap in the first layer is found one may continue on to the other layers of the overlapping cluster.
+
+- mark and sweep :: In comparing a cluster in slice $t$ to those in slice $s$ we also want to learn which clusters in slice $s$ where never found to overlap and to do so with having to do symmetric comparisons (ie, do NOT check each in $t$ against each in $s$ and then each in $s$ with each in $t$).  When any overlap is found some marking on both clusters is needed.  After overlap comparisons, remove all that lack markings.  
+
+In a sense, this checking for overlap with neighboring time slice is *almost* a continuation of clustering by adding three new layers of activity and limiting comparison to three previous layers.  However, it doesn't quite work as we must allow each slice to form its novel clusters before reducing them by the overlap check.  One could imagine a variant on cluster-the-overlap which plays with the slice size.  For example, some loss of spatial resolution is lost when the time slice is formed over some number of ticks.  For example, instead of slicing at 4 ticks, one could make an extended tiling of 6 layers (ignoring vert/horiz layers) with each triple spanning 2 ticks.
+
+*** Solving 
+
+The tiling step typically leaves "ghosts" which are blobs (aka ray clusters) which surround some region that does not actually contain any ionization activity.  The ambiguities which are inherent in having a limited number of layers makes it impossible to remove these ghosts with just the tiling algorithm.  Tiling only uses the existence of non-zero signal activity but does not use its magnitude.  Using this information it is possible to construct a linear equation in terms of measured signal activity and constrained by the geometry.  In the form of a matrix equation: $m = C G b$ where:
+
+- $m$ :: a vector spanning the set of $N_{ch}$ channels and holding their activity measurement
+- $C$ :: an association matrix of $N_{cn} \times N_{w}$ which records which wires are attached to which channels.
+- $G$ :: an association matrix of $N_w \times N_b$ which records which wires are overlapping to produce a given blob.
+- $b$ :: a vector of length $N_b$ giving the amount of ionization activity (in same units as $m$) of each blob.
+
+In the "solving" step we wish to solve for $b$ given the other tensors.  At their largest, these tensors span spaces defined by all channels, all possible wires and all possible overlaps from a single wire strip from each plane and across all anode faces.  Reducing the size of this problem the following strategies are available:
+
+- all  channels with activity below threshold are removed, in fact they and their channels are not even considered during tiling.
+
+- all wires not contributing to a "blob" resulting from a tiling can be removed from the problem.  If all wires associated with a channel are so removed so will the channel, even if it has activity above threshold.
+
+- a set of wires contributing to one or more blobs may be grouped so that the sum of activity is considered.  
+
+For this last one, grouping must respect the mutual partial shadowing that will occur between blobs in a given layer.  That is, if two blobs have intersection and difference then three wire groups (aggregate strips) should be formed with a pair of strips corresponding to one cluster, a pair to the other and one strip which is in both pairs.
 
 
 
-*** Outline of blob finding.
+It's also noted that the tiling is performed based on the arrangement of wire in planes of a single anode face.  Thus $G$ is composed of off-diagonal blocks consisting of zeros.  The non-zero (but sparse) diagonal block matrices $(G_0,G_1)$ each span the wires of one face and $b$ is likewise separable as $b = (b_0, b_1)$ and their produce it block diagonal $Gb =(G_0b_0, G_1b_1)$.  Application of $C$ mixes the block when wire conductors wrap around two anode faces.
 
-- Given set of rays each representing a "hit" wires on one APA face 
-  - find their 3D *bounding box*
-  - organize rays into sparse per-plane vectors indexed by their WIP index
+Next, it all zero blobs can be removed which removes wires and ultimately
 
-- For each wire plane
-
-
-
-Other functions:
-
-- bounding box :: given a set of hit wires in a face, find the 2D bounding box (BB) of all their endpoints.  All "real" crossing points must be in this BB.  In a sense, the horizontal and vertical sides are a wire bounding (WB) pair.
-
-
-Blobs are constructed progressively and may split along the way.  One plane at a time is considered and wire bounds are applied to previously existing blobs.  
-
-First pass is special in that every WB pair makes a blob and each wire endpoint is a "crossing point" as they are guaranteed to coincide with the BB.
-
-Second pass with another plane loops over previous blobs and for each finds the WB pairs that overlap (fast via *pitch location*  and *pitch index* functions and previous wire indexing).  
-
-For each new WB pair, find wire crossing points with all existing WB wires in the blob and remove any which are outside the old blobs boundary (including BB).  Also remove all old crossing points which are not inside the new WB.  Repeat this for each new WB on the original old blob.  Save new blobs.  Then move on to next old blob.  At end, toss old blobs, save new ones.
-
-Third pass, do the same.
 
