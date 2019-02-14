@@ -1,21 +1,21 @@
-/** Make strips based on channel index.
+/** Make stripes based on channel index.
 
     This component is "naive" because it does not consider dead channels or
     other real world detector pathology.
 
  */
-#ifndef WIRECELLIMG_NAIEVESTRIPPER
-#define WIRECELLIMG_NAIEVESTRIPPER
+#ifndef WIRECELLIMG_NAIEVESTRIPER
+#define WIRECELLIMG_NAIEVESTRIPER
 
-#include "WireCellIface/ISliceStripper.h"
+#include "WireCellIface/ISliceStriper.h"
 #include "WireCellIface/IConfigurable.h"
 
 namespace WireCell {
     namespace Img {
 
-        class NaiveStripper : public ISliceStripper, public IConfigurable {
+        class NaiveStriper : public ISliceStriper, public IConfigurable {
         public:
-            virtual ~NaiveStripper();
+            virtual ~NaiveStriper();
 
             virtual void configure(const WireCell::Configuration& cfg);
             virtual WireCell::Configuration default_configuration() const;

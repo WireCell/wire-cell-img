@@ -2,10 +2,10 @@
 
 using namespace WireCell::Img::Data;
 
-Strip::~Strip()
+Stripe::~Stripe()
 {
 }
-StripSet::~StripSet()
+StripeSet::~StripeSet()
 {
 }
 

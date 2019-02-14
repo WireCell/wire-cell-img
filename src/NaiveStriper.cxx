@@ -1,4 +1,4 @@
-#include "WireCellImg/NaiveStripper.h"
+#include "WireCellImg/NaiveStriper.h"
 #include "WireCellImg/ImgData.h"
 
 #include "WireCellUtil/NamedFactory.h"
@@ -8,17 +8,17 @@
 #include <boost/graph/connected_components.hpp>
 
 
-WIRECELL_FACTORY(NaiveStripper, WireCell::Img::NaiveStripper,
-                 WireCell::ISliceStripper, WireCell::IConfigurable)
+WIRECELL_FACTORY(NaiveStriper, WireCell::Img::NaiveStriper,
+                 WireCell::ISliceStriper, WireCell::IConfigurable)
 
 
 using namespace WireCell;
 
-Img::NaiveStripper::~NaiveStripper()
+Img::NaiveStriper::~NaiveStriper()
 {
 }
 
-WireCell::Configuration Img::NaiveStripper::default_configuration() const
+WireCell::Configuration Img::NaiveStriper::default_configuration() const
 {
     Configuration cfg;
 
@@ -30,13 +30,13 @@ WireCell::Configuration Img::NaiveStripper::default_configuration() const
 }
 
 
-void Img::NaiveStripper::configure(const WireCell::Configuration& cfg)
+void Img::NaiveStriper::configure(const WireCell::Configuration& cfg)
 {
     m_gap = get(cfg, "gap", 1);
 }
 
 
-bool Img::NaiveStripper::operator()(const input_pointer& slice, output_pointer& out)
+bool Img::NaiveStriper::operator()(const input_pointer& slice, output_pointer& out)
 {
     out = nullptr;
     if (!slice) {
@@ -96,35 +96,35 @@ bool Img::NaiveStripper::operator()(const input_pointer& slice, output_pointer& 
         }
     }
 
-    // Here's the heavy lifing.  Strips are understood to be formed as
+    // Here's the heavy lifing.  Stripes are understood to be formed as
     // the channels found by looking for the "connected subgraphs".
     // Like the graph itself, this neesds some looksup to translate
-    // between Boost Graph's subgraph index and a corresponding strip.
+    // between Boost Graph's subgraph index and a corresponding stripe.
     std::unordered_map<vertex_t, int> subclusters;
-    std::unordered_map<int, Img::Data::Strip*> cluster_to_strip;
+    std::unordered_map<int, Img::Data::Stripe*> cluster_to_stripe;
     size_t num = boost::connected_components(graph, boost::make_assoc_property_map(subclusters));
-    std::cerr << "Img::NaiveStripper: found " << num << " strips in slice " << slice->ident() << std::endl;
+    std::cerr << "Img::NaiveStriper: found " << num << " stripes in slice " << slice->ident() << std::endl;
 
-    // Collect channels of like cluster number into strips
+    // Collect channels of like cluster number into stripes
     for (auto& p : subclusters) {
         auto ncvit = node_to_chanval.find(p.first);
         if (ncvit == node_to_chanval.end()) {
             continue;
         }
         auto& cv = ncvit->second;
-        auto strip = cluster_to_strip[p.second];
-        if (!strip) {
-            cluster_to_strip[p.second] = strip = new Img::Data::Strip(p.first);
+        auto stripe = cluster_to_stripe[p.second];
+        if (!stripe) {
+            cluster_to_stripe[p.second] = stripe = new Img::Data::Stripe(p.first);
         }
-        strip->append(cv.first, cv.second);
+        stripe->append(cv.first, cv.second);
         std::cout << "\tch: " << cv.first->ident() << " with q=" << cv.second << std::endl;
     }
     
-    auto sliceset = new Img::Data::StripSet(slice->ident());
-    for (auto ss : cluster_to_strip) {
-        sliceset->push_back(IStrip::pointer(ss.second));
+    auto sliceset = new Img::Data::StripeSet(slice->ident());
+    for (auto ss : cluster_to_stripe) {
+        sliceset->push_back(IStripe::pointer(ss.second));
     }
 
-    out = IStripSet::pointer(sliceset);
+    out = IStripeSet::pointer(sliceset);
     return true;
 }

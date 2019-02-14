@@ -11,8 +11,8 @@
 #include "WireCellIface/IFrame.h"
 #include "WireCellIface/IWire.h"
 #include "WireCellIface/IChannel.h"
-#include "WireCellIface/IStrip.h"
-#include "WireCellIface/IStripSet.h"
+#include "WireCellIface/IStripe.h"
+#include "WireCellIface/IStripeSet.h"
 #include "WireCellIface/ISlice.h"
 #include "WireCellIface/ISliceFrame.h"
 
@@ -60,40 +60,40 @@ namespace WireCell {
             };
 
 
-            class Strip : public IStrip {
+            class Stripe : public IStripe {
                 int m_ident;
                 vector_t m_values;
 
             public:
-                Strip(int ident) : m_ident(ident) {}
-                virtual ~Strip();
+                Stripe(int ident) : m_ident(ident) {}
+                virtual ~Stripe();
 
                 int ident() const { return m_ident; }
                 vector_t values() const { return m_values; }
 
-                // these methods may be used prior to internment into IStrip::pointer
+                // these methods may be used prior to internment into IStripe::pointer
 
                 void append(IChannel::pointer ich, value_t value) {
                     m_values.push_back(make_pair(ich, value));
                 }
 
             };
-            class StripSet : public IStripSet {
+            class StripeSet : public IStripeSet {
                 int m_ident;
-                IStrip::vector m_strips;
+                IStripe::vector m_stripes;
 
             public:
 
-                StripSet(int ident) : m_ident(ident) {}
-                virtual ~StripSet();
+                StripeSet(int ident) : m_ident(ident) {}
+                virtual ~StripeSet();
 
                 int ident() const { return m_ident; }
-                IStrip::vector strips() const { return m_strips; }
+                IStripe::vector stripes() const { return m_stripes; }
     
                 // use before interning
 
-                void push_back(const IStrip::pointer& s) { m_strips.push_back(s); }
-                size_t size() const { return m_strips.size(); }
+                void push_back(const IStripe::pointer& s) { m_stripes.push_back(s); }
+                size_t size() const { return m_stripes.size(); }
 
             };
 
