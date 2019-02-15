@@ -89,9 +89,18 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     measures[1].push_back(1);   // are for horiz/vert bounds
 
     const auto face = m_face->ident();
+    auto chvs = slice->activity();
+    if (chvs.empty()) {
+        std::cerr << "GridTiling: slice " << slice->ident() << " no activity\n";
+        return true;
+    }
+    int total_activity=0;
     for (const auto& chv : slice->activity()) {
         for (const auto& wire : chv.first->wires()) {
             if (wire->planeid().face() != face) {
+                std::cerr << "GridTiling: ignoring wire "
+                          << wire->ident() << " of " << wire->planeid()
+                          << " not in face " << face << std::endl;
                 continue;
             }
             const int pit_ind = wire->index();
@@ -107,17 +116,26 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
                 m.resize(pit_ind+1, 0.0);
             }
             m[pit_ind] += 1.0;
+            ++total_activity;
         }
     }
+
+    if (!total_activity) {
+        std::cerr << "GridTiling: slice " << slice->ident() << " no activity\n";
+        return true;
+    }
+    std::cerr << "GridTiling: slice " << slice->ident() << " "<< total_activity << " hit wires\n";
 
     activities_t activities;
     for (int layer = 0; layer<nlayers; ++layer) {
         auto& m = measures[layer];
         Activity activity(layer, {m.begin(), m.end()});
+        std::cerr << activity << std::endl;
         activities.push_back(activity);
     }
 
     auto blobs = make_blobs(m_face->raygrid(), activities);
+    std::cerr << "GridTiling: slice " << slice->ident() << " found "<<blobs.size()<<" blobs\n";
     
     const int sbs_ident = slice->ident();
     SimpleBlobSet* sbs = new SimpleBlobSet(sbs_ident, m_face->ident(), slice);
