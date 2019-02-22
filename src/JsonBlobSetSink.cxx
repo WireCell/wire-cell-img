@@ -56,7 +56,13 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
     auto frame = slice->frame();
     const double start = slice->start();
     const double time = frame->time();
-    const double x = (start-time)/m_drift_speed;
+    const double x = (start-time)*m_drift_speed;
+
+    std::cerr << "BlobSet: frame:"<<frame->ident() <<", slide:"<<slice->ident()
+              << " set:" << bs->ident()
+              << " time=" << time/units::ms << "ms, start="<<start/units::ms << "ms"
+              << " x=" << x << std::endl;
+
     //const double span = slice->span();
     //const double dx = span/m_drift_speed;
 
