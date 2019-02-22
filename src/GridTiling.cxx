@@ -91,20 +91,40 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     const auto face = m_face->ident();
     auto chvs = slice->activity();
     if (chvs.empty()) {
-        std::cerr << "GridTiling: slice " << slice->ident() << " no activity\n";
+        //std::cerr << "GridTiling: slice " << slice->ident() << " no activity\n";
         return true;
     }
     int total_activity=0;
+    // std::cerr << "slice " << slice->ident()
+    //           << " t=" << slice->start()/units::ms << "ms + "
+    //           << slice->span()/units::us << "us with "
+    //           << slice->activity().size() << " activities\n";
+
     for (const auto& chv : slice->activity()) {
+        // std::cerr << "chid=" << chv.first->ident()
+        //           << ", chind=" << chv.first->index()
+        //           << ", wpid=" << chv.first->planeid()
+        //           << ", val=" << chv.second
+        //           << " " << chv.first->wires().size() << " wires"
+        //           << "\n";
         for (const auto& wire : chv.first->wires()) {
             if (wire->planeid().face() != face) {
-                std::cerr << "GridTiling: ignoring wire "
-                          << wire->ident() << " of " << wire->planeid()
-                          << " not in face " << face << std::endl;
+                // std::cerr << "GridTiling: ignoring wire "
+                //           << wire->ident()
+                //           << " seg " << wire->segment()
+                //           << " of " << wire->planeid()
+                //           << " not in face " << face << std::endl;
                 continue;
             }
             const int pit_ind = wire->index();
             const int layer = 2 + wire->planeid().index();
+            // std::cerr << "GridTiling: using wire "
+            //           << wire->ident()
+            //           << " seg " << wire->segment()
+            //           << " of " << wire->planeid()
+            //           << " in face " << face
+            //           << " L" << layer << " pit_ind=" << pit_ind
+            //           << std::endl;
             auto& m = measures[layer];
             if (pit_ind < 0) {
                 std::cerr << "GridTiling: wire with negative pitch index: " << pit_ind
@@ -124,18 +144,18 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
         std::cerr << "GridTiling: slice " << slice->ident() << " no activity\n";
         return true;
     }
-    std::cerr << "GridTiling: slice " << slice->ident() << " "<< total_activity << " hit wires\n";
+    // std::cerr << "GridTiling: slice " << slice->ident() << " "<< total_activity << " hit wires\n";
 
     activities_t activities;
     for (int layer = 0; layer<nlayers; ++layer) {
         auto& m = measures[layer];
         Activity activity(layer, {m.begin(), m.end()});
-        std::cerr << activity << std::endl;
+        //std::cerr << "\t" << activity << std::endl;
         activities.push_back(activity);
     }
 
     auto blobs = make_blobs(m_face->raygrid(), activities);
-    std::cerr << "GridTiling: slice " << slice->ident() << " found "<<blobs.size()<<" blobs\n";
+    // std::cerr << "GridTiling: slice " << slice->ident() << " found "<<blobs.size()<<" blobs\n";
     
     const int sbs_ident = slice->ident();
     SimpleBlobSet* sbs = new SimpleBlobSet(sbs_ident, m_face->ident(), slice);
