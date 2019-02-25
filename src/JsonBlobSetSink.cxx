@@ -58,17 +58,20 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
     const double time = frame->time();
     const double x = (start-time)*m_drift_speed;
 
-    std::cerr << "BlobSet: frame:"<<frame->ident() <<", slide:"<<slice->ident()
+    const auto& blobs = bs->blobs();
+
+    std::cerr << "BlobSet: frame:"<<frame->ident() <<", slice:"<<slice->ident()
               << " set:" << bs->ident()
               << " time=" << time/units::ms << "ms, start="<<start/units::ms << "ms"
-              << " x=" << x << std::endl;
+              << " x=" << x
+              << " nbolobs=" << blobs.size()
+              << std::endl;
 
     //const double span = slice->span();
     //const double dx = span/m_drift_speed;
 
     Json::Value jblobs = Json::arrayValue;
 
-    const auto& blobs = bs->blobs();
     if (blobs.empty()) {
         std::cerr << "JsonBlobSetSink: no input blobs\n";
         return true;
