@@ -1,0 +1,38 @@
+#+title: WIP Notes
+
+* Tiling
+
+The ~img/test/test-pdsp.jsonnet~ file can configure to run either full or fast sim+sigproc (fast is the new ~DepoSplat~ component).  
+
+#+BEGIN_EXAMPLE
+rm -f test-pdsp.npz test-pdsp-*.json && wire-cell -c img/test/test-pdsp.jsonnet  
+#+END_EXAMPLE
+
+This makes a bunch of JSON files which can be aggregated:
+
+#+BEGIN_EXAMPLE
+  jq -s .  test-pdsp-*.json|jq '{blobs:[.[]|.blobs|.[0]]}' > test-pdsp.json && python 
+#+END_EXAMPLE
+
+It also makes some Numpy files.  The two can be turned into VTK/paraview files:
+
+#+BEGIN_EXAMPLE
+  ./util/test/blob2tvtk.py test-pdsp.json
+  ./util/test/depo2tvtk.py test-pdsp.npz - 3695*units.mm/speed
+  paraview test-pdsp.pvd 
+#+END_EXAMPLE
+
+As hinted here, there is currently an arbitrary time offset that needs
+to be applied to get depos and blobs to line up in the display.  
+
+That ~test-pdsp.pvd~ file if a paraview file that simply includes both the VTK files
+
+#+BEGIN_SRC xml
+<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
+  <Collection>
+    <DataSet timestep="0001" part="001" file="test-pdsp-blobs.vtu" name="blobs"/>
+    <DataSet timestep="0001" part="002" file="test-pdsp-points.vtp" name="points"/>
+  </Collection>
+</VTKFile>
+#+END_SRC
+
