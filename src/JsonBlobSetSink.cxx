@@ -60,11 +60,16 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
 
     const auto& blobs = bs->blobs();
 
-    std::cerr << "BlobSet: frame:"<<frame->ident() <<", slice:"<<slice->ident()
+    if (blobs.empty()) {
+        //std::cerr << "JsonBlobSetSink: no input blobs\n";
+        return true;
+    }
+
+    std::cerr << "JsonBlobSetSink: frame:"<<frame->ident() <<", slice:"<<slice->ident()
               << " set:" << bs->ident()
               << " time=" << time/units::ms << "ms, start="<<start/units::ms << "ms"
               << " x=" << x
-              << " nbolobs=" << blobs.size()
+              << " nblobs=" << blobs.size()
               << std::endl;
 
     //const double span = slice->span();
@@ -72,10 +77,6 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
 
     Json::Value jblobs = Json::arrayValue;
 
-    if (blobs.empty()) {
-        std::cerr << "JsonBlobSetSink: no input blobs\n";
-        return true;
-    }
 
     for (const auto& iblob: blobs) {
         const auto& blob = iblob->shape();

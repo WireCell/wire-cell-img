@@ -91,43 +91,49 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     const auto face = m_face->ident();
     auto chvs = slice->activity();
     if (chvs.empty()) {
-        //std::cerr << "GridTiling: slice " << slice->ident() << " no activity\n";
+        std::cerr << "GridTiling: slice " << slice->ident() << " no activity\n";
         return true;
     }
+
+    const int nactivities = slice->activity().size();
     int total_activity=0;
-    // std::cerr << "slice " << slice->ident()
-    //           << " t=" << slice->start()/units::ms << "ms + "
-    //           << slice->span()/units::us << "us with "
-    //           << slice->activity().size() << " activities\n";
+    std::cerr << "GridTiling: slice " << slice->ident()
+              << " t=" << slice->start()/units::ms << "ms + "
+              << slice->span()/units::us << "us with "
+              << nactivities << " activitie channels\n";
+    if (nactivities < m_face->nplanes()) {
+        // must have at least one activity per plane
+        return true;
+    }
 
     for (const auto& chv : slice->activity()) {
-        // std::cerr << "chid=" << chv.first->ident()
-        //           << ", chind=" << chv.first->index()
-        //           << ", wpid=" << chv.first->planeid()
-        //           << ", val=" << chv.second
-        //           << " " << chv.first->wires().size() << " wires"
-        //           << "\n";
+        std::cerr << "GridTiling: active chid=" << chv.first->ident()
+                  << ", chind=" << chv.first->index()
+                  << ", wpid=" << chv.first->planeid()
+                  << ", val=" << chv.second
+                  << " " << chv.first->wires().size() << " wires"
+                  << "\n";
         for (const auto& wire : chv.first->wires()) {
             if (wire->planeid().face() != face) {
-                // std::cerr << "GridTiling: ignoring wire "
-                //           << wire->ident()
-                //           << " seg " << wire->segment()
-                //           << " of " << wire->planeid()
-                //           << " not in face " << face << std::endl;
+                std::cerr << "GridTiling:\tignoring wire "
+                          << wire->ident()
+                          << " seg " << wire->segment()
+                          << " of " << wire->planeid()
+                          << " not in face " << face << std::endl;
                 continue;
             }
             const int pit_ind = wire->index();
             const int layer = 2 + wire->planeid().index();
-            // std::cerr << "GridTiling: using wire "
-            //           << wire->ident()
-            //           << " seg " << wire->segment()
-            //           << " of " << wire->planeid()
-            //           << " in face " << face
-            //           << " L" << layer << " pit_ind=" << pit_ind
-            //           << std::endl;
+            std::cerr << "GridTiling:\tusing wire "
+                      << wire->ident()
+                      << " seg " << wire->segment()
+                      << " of " << wire->planeid()
+                      << " in face " << face
+                      << " L" << layer << " pit_ind=" << pit_ind
+                      << std::endl;
             auto& m = measures[layer];
             if (pit_ind < 0) {
-                std::cerr << "GridTiling: wire with negative pitch index: " << pit_ind
+                std::cerr << "GridTiling:\twire with negative pitch index: " << pit_ind
                           << " in wire plane " << wire->planeid() 
                           << std::endl;
                 continue;
@@ -142,15 +148,31 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
 
     if (!total_activity) {
         std::cerr << "GridTiling: slice " << slice->ident() << " no activity\n";
+        // fixme: need to send empty IBlob else we create EOS
         return true;
     }
-    // std::cerr << "GridTiling: slice " << slice->ident() << " "<< total_activity << " hit wires\n";
+    size_t nactive_layers = 0;
+    for (const auto& blah : measures) {
+        if (blah.empty()) { continue; }
+        ++nactive_layers;
+    }
+    if (nactive_layers != measures.size()) {
+        std::cerr << "GridTiling: only " << nactive_layers
+                  << " active layers out of " << measures.size() << " measures spanning n ray bins:";
+        for (const auto& m : measures) {
+            std::cerr << " " << m.size();
+        }
+        std::cerr << "\n";
+        // fixme: need to send empty IBlob else we create EOS
+        return true;
+    }
+    std::cerr << "GridTiling: accepted slice " << slice->ident() << " "<< total_activity << " hit wires\n";
 
     activities_t activities;
     for (int layer = 0; layer<nlayers; ++layer) {
         auto& m = measures[layer];
         Activity activity(layer, {m.begin(), m.end()});
-        //std::cerr << "\t" << activity << std::endl;
+        std::cerr << "GridTiling:\t" << activity << std::endl;
         activities.push_back(activity);
     }
 

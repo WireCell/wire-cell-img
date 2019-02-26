@@ -110,6 +110,19 @@ bool Img::SumSlices::operator()(const input_pointer& in, output_queue& slices)
     // intern
     for (auto sit : svcmap) {
         auto s = sit.second;
+        
+        /// debug
+        double qtot = 0;
+        for (const auto& a : s->activity()) {
+            qtot += a.second;
+        }
+        std::cerr << "SumSlices: #" << s->ident()
+                  << " t=" << s->start() << " + " << s->span()
+                  << " qtot=" << qtot
+                  << " in nchan=" << s->activity().size()
+                  << std::endl;
+        ///
+
         slices.push_back(ISlice::pointer(s));
     }
 
