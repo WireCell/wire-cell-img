@@ -57,14 +57,12 @@ local blip = {
     head: wc.point(210.0, 3000.0, 1000.0, wc.mm),
 };
 local stubby = {
-    // put stuff near V and W zero wires
     tail: wc.point(100.0, 100.0, 130.0, wc.cm),
     head: wc.point(120.0,  90.0, 140.0, wc.cm),
 };
 local cross = {
-    // put stuff near V and W zero wires
-    tail: wc.point(100.0, 130.0, 100.0, wc.cm),
-    head: wc.point(120.0, 140.0, 90.0, wc.cm),
+    tail: wc.point(100.0, 100.0, 140.0, wc.cm),
+    head: wc.point(120.0,  90.0, 130.0, wc.cm),
 };
 local longer = {
     tail: wc.point(100.0, 100.0, 130.0, wc.cm),
