@@ -91,13 +91,13 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     const auto face = m_face->ident();
     auto chvs = slice->activity();
     if (chvs.empty()) {
-        std::cerr << "GridTiling: slice " << slice->ident() << " no activity\n";
+        std::cerr << "GridTiling: face: "<<face<<", slice:" << slice->ident() << " no activity\n";
         return true;
     }
 
     const int nactivities = slice->activity().size();
     int total_activity=0;
-    std::cerr << "GridTiling: slice " << slice->ident()
+    std::cerr << "GridTiling: face:"<<face<<", slice:" << slice->ident()
               << " t=" << slice->start()/units::ms << "ms + "
               << slice->span()/units::us << "us with "
               << nactivities << " activitie channels\n";

@@ -19,7 +19,7 @@ local apa_index = 1;
 
 // for now, we focus on just one face.  The 0 face is toward the
 // positive-X direction.
-//local face = 1;
+local face = 1;
 
 local frame_tags = if fast_splat then [] else ["wiener%d"%apa_index, "gauss%d"%apa_index];
 local slice_tag = if fast_splat then "" else "gauss%d"%apa_index;
@@ -125,44 +125,28 @@ local slices = g.pnode({
     },
 }, nin=1, nout=1, uses=[anode]);
 
-local slice_fanout = g.pnode({
-    type: "SliceFanout",
-    data: { multiplicity: 2 },
-}, nin=1, nout=2);
+local tiling = g.pnode({
+    type: "GridTiling",
+    data: {
+        anode: wc.tn(anode),
+        face: face,
+    }
+}, nin=1, nout=1, uses=[anode]);
 
-local tilings = [
-    g.pnode({
-        type: "GridTiling",
-        name: "tiling%d"%face,
-        data: {
-            anode: wc.tn(anode),
-            face: face,
-        }
-    }, nin=1, nout=1, uses=[anode]) for face in [0,1]];
-local sinks = [
-    g.pnode({
-        type: "JsonBlobSetSink",
-        name: "blobsink%d"%face,
-        data: {
-            anode: wc.tn(anode),
-            face: face,
-            filename: "test-pdsp-face%d-%%02d.json" % face,
-        },
-    }, nin=1, nout=0, uses=[anode]) for face in [0,1]];
-
-local sink = g.intern(innodes=[slice_fanout],
-                      outnodes=[],
-                      centernodes=tilings+sinks,
-                      edges=
-                      [g.edge(slice_fanout, tilings[n], n, 0) for n in [0,1]] +
-                      [g.edge(tilings[n], sinks[n]) for n in [0,1]],
-                      name='twofacesink');
+local sink = g.pnode({
+    type: "JsonBlobSetSink",
+    data: {
+        anode: wc.tn(anode),
+        face: face,
+        filename: "test-pdsp-%02d.json",
+    },
+}, nin=1, nout=0, uses=[anode]);
 
 
 local graph = g.pipeline([depos, deposio, drifter,
                           deposplat,
                           //bagger, simsn, sigproc,
-                          frameio, slices, sink]);
+                          frameio, slices, tiling, sink]);
 
 local cmdline = {
     type: "wire-cell",
