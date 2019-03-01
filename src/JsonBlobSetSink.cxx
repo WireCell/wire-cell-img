@@ -93,7 +93,8 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
         jblob["points"] = jcorners;
         jblob["values"]["charge"] = iblob->value();
         jblob["values"]["uncert"] = iblob->uncertainty();
-        jblob["values"]["number"] = jblobs.size();
+        jblob["values"]["ident"] = iblob->ident();
+        jblob["values"]["inset"] = jblobs.size();
         //std::cerr << jblob << std::endl;
         jblobs.append(jblob);
     }

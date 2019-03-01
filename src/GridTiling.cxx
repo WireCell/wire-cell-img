@@ -11,6 +11,7 @@ using namespace WireCell::RayGrid;
 
 
 Img::GridTiling::GridTiling()
+    : m_blobs_seen(0)
 {
 }
 
@@ -80,6 +81,7 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
 {
     out = nullptr;
     if (!slice) {
+        m_blobs_seen = 0;
         return true;            // eos
     }
 
@@ -182,10 +184,9 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     const int sbs_ident = slice->ident();
     SimpleBlobSet* sbs = new SimpleBlobSet(sbs_ident, m_face->ident(), slice);
 
-    int blob_ident = 0;
     const float blob_value = 0.0; // tiling doesn't consider particular charge
     for (const auto& blob : blobs) {
-        SimpleBlob* sb = new SimpleBlob(blob_ident, blob_value, 0.0, blob);
+        SimpleBlob* sb = new SimpleBlob(m_blobs_seen++, blob_value, 0.0, blob);
         sbs->m_blobs.push_back(IBlob::pointer(sb));
     }
 
