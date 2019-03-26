@@ -139,7 +139,24 @@ local tilings = [
             face: face,
         }
     }, nin=1, nout=1, uses=[anode]) for face in [0,1]];
-local sinks = [
+
+local blobsync = g.pnode({
+    type: "BlobSync",
+    name: "blobsync",           // will need one per anode eventually
+    data: {
+        multiplicity: 2,
+    }
+}, nin=2, nout=1);
+
+local blobsolver = g.pnode({
+    type: "BlobSolver",
+    name: "bloblsolver",        // will need one per anode eventually
+    data: {
+        // nothing yet
+    }
+}, nin=1, nout=1);
+
+local jsonblobsinks = [
     g.pnode({
         type: "JsonBlobSetSink",
         name: "blobsink%d"%face,
@@ -150,19 +167,21 @@ local sinks = [
         },
     }, nin=1, nout=0, uses=[anode]) for face in [0,1]];
 
-local sink = g.intern(innodes=[slice_fanout],
-                      outnodes=[],
-                      centernodes=tilings+sinks,
-                      edges=
-                      [g.edge(slice_fanout, tilings[n], n, 0) for n in [0,1]] +
-                      [g.edge(tilings[n], sinks[n]) for n in [0,1]],
-                      name='twofacesink');
+local blobification =
+    g.intern(innodes=[slice_fanout],
+             outnodes=[],
+             centernodes=tilings+[blobsync],
+             edges=
+             [g.edge(slice_fanout, tilings[n], n, 0) for n in [0,1]] +
+             [g.edge(tilings[n], blobsync, 0, n) for n in [0,1]] +
+             [g.edge(blobsync, blobsolver)],
+             name='blobification');
 
 
 local graph = g.pipeline([depos, deposio, drifter,
                           deposplat,
                           //bagger, simsn, sigproc,
-                          frameio, slices, sink]);
+                          frameio, slices, blobification]);
 
 local cmdline = {
     type: "wire-cell",

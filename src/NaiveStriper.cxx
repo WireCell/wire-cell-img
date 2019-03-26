@@ -44,7 +44,7 @@ bool Img::NaiveStriper::operator()(const input_pointer& slice, output_pointer& o
     }
 
     // The graph connects channels to attached wires and wires to
-    // their adjacent neighbor in the plain and along the positive
+    // their adjacent neighbor in the plane and along the positive
     // pitch direction.  
 
     typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS> graph_t;
