@@ -163,9 +163,9 @@ local blobification =
 
 local clustering = g.pnode({ type: "BlobClustering" }, nin=1, nout=1);
 
-local blobsolver = g.pnode({
-    type: "BlobSolver",
-    name: "blobsolver",        // will need one per anode eventually
+local blobsolving = g.pnode({
+    type: "BlobSolving",
+    name: "blobsolving",        // will need one per anode eventually
     data: {
         anode: wc.tn(anode),
     }

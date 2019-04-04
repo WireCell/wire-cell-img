@@ -1,8 +1,8 @@
 #include "WireCellImg/BlobGrouping.h"
 
-#include "WireCellUtil/NamedFactory.h"
-
 #include "WireCellIface/SimpleCluster.h"
+
+#include "WireCellUtil/NamedFactory.h"
 
 #include <boost/graph/connected_components.hpp>
 
