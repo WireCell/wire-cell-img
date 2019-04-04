@@ -127,6 +127,7 @@ local slices = g.pnode({
 
 local slice_fanout = g.pnode({
     type: "SliceFanout",
+    name: "slicefanout",
     data: { multiplicity: 2 },
 }, nin=1, nout=2);
 
@@ -141,20 +142,34 @@ local tilings = [
     }, nin=1, nout=1, uses=[anode]) for face in [0,1]];
 
 local blobsync = g.pnode({
-    type: "BlobSync",
-    name: "blobsync",           // will need one per anode eventually
+    type: "BlobSetSync",
+    name: "blobsetsync",        // will need one per anode eventually
     data: {
         multiplicity: 2,
     }
 }, nin=2, nout=1);
 
+
+
+local blobification =
+    g.intern(innodes=[slice_fanout],
+             outnodes=[blobsync],
+             centernodes=tilings,
+             edges=
+             [g.edge(slice_fanout, tilings[n], n, 0) for n in [0,1]] +
+             [g.edge(tilings[n], blobsync, 0, n) for n in [0,1]],
+             name='blobification');
+
+
+local clustering = g.pnode({ type: "BlobClustering" }, nin=1, nout=1);
+
 local blobsolver = g.pnode({
     type: "BlobSolver",
-    name: "bloblsolver",        // will need one per anode eventually
+    name: "blobsolver",        // will need one per anode eventually
     data: {
-        // nothing yet
+        anode: wc.tn(anode),
     }
-}, nin=1, nout=1);
+}, nin=1, nout=1, uses=[anode]);
 
 local jsonblobsinks = [
     g.pnode({
@@ -167,21 +182,19 @@ local jsonblobsinks = [
         },
     }, nin=1, nout=0, uses=[anode]) for face in [0,1]];
 
-local blobification =
-    g.intern(innodes=[slice_fanout],
-             outnodes=[],
-             centernodes=tilings+[blobsync],
+local sink =
+    g.intern(innodes = [blobsplit],
+             outnodes = [],
+             centernodes = jsonblobsinks,
              edges=
-             [g.edge(slice_fanout, tilings[n], n, 0) for n in [0,1]] +
-             [g.edge(tilings[n], blobsync, 0, n) for n in [0,1]] +
-             [g.edge(blobsync, blobsolver)],
-             name='blobification');
-
+             [g.edge(blobsplit, jsonblobsinks[n], n, 0) for n in [0,1]],
+             name="blobsink");
+             
 
 local graph = g.pipeline([depos, deposio, drifter,
                           deposplat,
                           //bagger, simsn, sigproc,
-                          frameio, slices, blobification]);
+                          frameio, slices, blobification, blobsolver, sink]);
 
 local cmdline = {
     type: "wire-cell",

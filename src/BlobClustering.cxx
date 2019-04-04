@@ -1,9 +1,8 @@
 #include "WireCellImg/BlobClustering.h"
 #include "WireCellUtil/RayClustering.h"
-
+#include "WireCellIface/SimpleCluster.h"
 #include "WireCellUtil/NamedFactory.h"
 
-#include <boost/graph/connected_components.hpp>
 #include <boost/graph/graphviz.hpp>
 
 #include <iostream>
@@ -15,7 +14,8 @@ using namespace WireCell;
 
 
 Img::BlobClustering::BlobClustering()
-    : m_spans(1.0), m_last_bs(nullptr)
+    : m_spans(1.0)
+    , m_last_bs(nullptr)
 {
 }
 Img::BlobClustering::~BlobClustering()
@@ -41,47 +41,9 @@ WireCell::Configuration Img::BlobClustering::default_configuration() const
 
 void Img::BlobClustering::flush(output_queue& clusters)
 {
-    {
-        auto e = edges(m_graph);
-        if (e.first == e.second) {
-            return;                 // empty
-        }
-    }
-
-    std::unordered_map<vertex_t, int> subclusters;
-    size_t num = boost::connected_components(m_graph, boost::make_assoc_property_map(subclusters));
-    std::cerr << "BlobClustering: found " << num << " clusters at " << m_last_bs->ident() << std::endl;
-
-    for (auto& p : subclusters) {
-        vertex_t blobident = p.first;
-        int clustnum = p.second;
-        std::cerr << "CLUSTER: " << clustnum << ", BLOB: " << blobident << std::endl;
-    }
-
-    // fixme:
-    // for (auto sg : subgraph(m_graph)) {
-    //     auto scluster = new SimpleCluster(....);
-    //     for (auto edge : sg) {
-    //         auto iedge = convert(edge...);
-    //         scluster->add_edge(iedge);
-    //     }
-    //     auto icluster = ICluster::pointer(scluster);
-    //     clusters.push_back(icluster);
-    // }
-
-
-    // boost::write_graphviz(std::cout, m_graph,
-    //                       [&] (auto& out, auto v) {
-    //                           out << "[label=\"" << m_graph[v].iblob->ident() << "\"]";
-    //                       },
-    //                       [&] (auto& out, auto e) {
-    //                           out << "[label=\"\"]";
-    //                       });
-    // std::cout << std::flush;
-
-    m_graph.clear();
-    m_ident2vertex.clear();
-    //m_vertex2iblob.clear();
+    clusters.push_back(std::make_shared<SimpleCluster>(m_grind.graph()));
+    m_grind.clear();
+    m_last_bs = nullptr;
 }
 
 void Img::BlobClustering::intern(const input_pointer& newbs)
@@ -91,34 +53,72 @@ void Img::BlobClustering::intern(const input_pointer& newbs)
 
 bool Img::BlobClustering::judge_gap(const input_pointer& newbs)
 {
+    const double epsilon = 1*units::ns;
+
+    if (m_spans <= epsilon) {
+        return false;           // never break on gap.
+    }
+
     auto nslice = newbs->slice();
     auto oslice = m_last_bs->slice();
 
     const double dt = nslice->start() - oslice->start();
-    const double epsilon = 1*units::ns;
     return std::abs(dt - m_spans*oslice->span()) > epsilon;
 }
 
-Img::BlobClustering::vertex_t Img::BlobClustering::vertex(const IBlob::pointer& iblob)
-{
-    // this is a little painful!
 
-    int ident = iblob->ident();
-    auto it = m_ident2vertex.find(ident);
-    if (it == m_ident2vertex.end()) {
-        auto vtx = boost::add_vertex(node_t{iblob}, m_graph);
-        //auto vtx = boost::add_vertex(m_graph);
-        //m_vertex2iblob[vtx] = iblob;
-        m_ident2vertex[ident] = vtx;
-        return vtx;
+void Img::BlobClustering::add_slice(const ISlice::pointer& islice)
+{
+    if (m_grind.has(islice)) {
+        return;
     }
-    return it->second;
+
+    for (const auto& ichv : islice->activity()) {
+        const IChannel::pointer ich = ichv.first;
+        if (m_grind.has(ich)) {
+            continue;
+        }
+        for (const auto& iwire : ich->wires()) {
+            m_grind.edge(ich, iwire);
+        }
+    }
+}
+
+void Img::BlobClustering::add_blobs(const input_pointer& newbs)
+{
+    for (const auto& iblob : newbs->blobs()) {
+        auto islice = iblob->slice();
+        add_slice(islice);
+        m_grind.edge(islice, iblob);
+
+        auto iface = iblob->face();
+        auto wire_planes = iface->planes();
+
+        const auto& shape = iblob->shape();
+        for (const auto& strip : shape.strips()) {
+            // FIXME: need a way to encode this convention!
+            // For now, it requires collusion.  Don't impeach me.
+            const int num_nonplane_layers = 2;
+            int iplane = strip.layer - num_nonplane_layers;
+            if (iplane < 0) {
+                continue; 
+            }
+            const auto& wires = wire_planes[iplane]->wires();
+            for (int wip=strip.bounds.first; wip < strip.bounds.second; ++wip) {
+                auto iwire = wires[wip];
+                m_grind.edge(iblob, iwire);
+            }
+        }
+    }
 }
 
 bool Img::BlobClustering::graph_bs(const input_pointer& newbs)
 {
+    add_blobs(newbs);
+
     if (!m_last_bs) {
-        // need to wait for next one to do anything
+        // need to wait for next one to do anything.
+        // note, caller interns.
         return false;
     }
     if (judge_gap(newbs)) {
@@ -126,6 +126,7 @@ bool Img::BlobClustering::graph_bs(const input_pointer& newbs)
         return true;
     }
 
+    // handle each face separately faces
     IBlob::vector iblobs1 = newbs->blobs();
     IBlob::vector iblobs2 = m_last_bs->blobs();
 
@@ -138,14 +139,11 @@ bool Img::BlobClustering::graph_bs(const input_pointer& newbs)
     auto assoc = [&](RayGrid::blobref_t& a, RayGrid::blobref_t& b) {
                      int an = a - beg1;
                      int bn = b - beg2;
-
-                     vertex_t av = vertex(iblobs1[an]);
-                     vertex_t bv = vertex(iblobs2[bn]);
-
-                     boost::add_edge(av, bv, m_graph);
+                     m_grind.edge(iblobs1[an], iblobs2[bn]);
                  };
-
     RayGrid::associate(blobs1, blobs2, assoc);
+
+    
 
     return false;
 }
@@ -157,7 +155,6 @@ bool Img::BlobClustering::operator()(const input_pointer& blobset, output_queue&
         clusters.push_back(nullptr); // forward eos
         return true;
     }
-
 
     bool gap = graph_bs(blobset);
     if (gap) {

@@ -1,19 +1,22 @@
 /** Cluster blobs.
 
-    This takes a stream of IBlobSets and produces a stream of IClusters.
+    This takes a stream of IBlobSets and mints a new ICluster on EOS
+    or earlier if a gap in time slice is found.
 
     It assumes each blob set represents all blobs found in one time
-    slice and that blob sets are delivered in time order.  Gaps in
-    time between blob sets will be determined by the ident of the
-    slice from the blob set.  Clusters will not span a gap.  Likewise,
-    when an EOS is encountered, all clusters are flushed to the output
-    queue.
+    slice (including none) and that blob sets are delivered in time
+    order.  Blobs in the set may span both faces of an anode plane.
+    Gaps in time between blob sets will be determined by the set's
+    slice.  
 
-    Clustering is performed by constructing a graph and calculating
-    the connected subgraphs.
+    Clusters will not span a gap.  Likewise, when an EOS is
+    encountered, all clusters are flushed to the output queue.  If the
+    "spans" config param is 0 then no gap testing is done.
 
-    Note, that input blob sets and blobs are held between calls (via
-    their shared pointers).
+    The produced ICluster has b, w, c and s nodes.
+
+    Note, that input blob sets and thus their blobs may be held
+    between calls (via their shared pointers).
 
  */
 
@@ -22,16 +25,18 @@
 
 #include "WireCellIface/IClustering.h"
 #include "WireCellIface/IConfigurable.h"
+#include "WireCellIface/IWire.h"
+#include "WireCellIface/IChannel.h"
+#include "WireCellIface/IBlob.h"
+#include "WireCellIface/ISlice.h"
+#include "WireCellIface/IBlobSet.h"
 
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/graph_traits.hpp>
-
-#include <unordered_map>
+#include "WireCellUtil/IndexedGraph.h"
 
 namespace WireCell {
     namespace Img {
 
-        class BlobClustering : public IClustering, public IConfigurable{
+        class BlobClustering : public IClustering, public IConfigurable {
         public:
             BlobClustering();
             virtual ~BlobClustering();
@@ -47,26 +52,14 @@ namespace WireCell {
             // must be adjacent in time or clusters will flush.
             double m_spans;
 
-            // Mostly to access previous slice time to judge gap
+            // for judging gap and spatial clustering.
             IBlobSet::pointer m_last_bs;
 
-            struct node_t {
-                IBlob::pointer iblob;
-            };
+            cluster_indexed_graph_t m_grind;
 
-            // The graph type.  Hold blob  as vertex property.
-            typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, node_t> graph_t;
-            typedef boost::graph_traits<graph_t>::vertex_descriptor vertex_t;
-            std::unordered_map<int, vertex_t> m_ident2vertex;
-            //std::unordered_map<vertex_t, IBlob::pointer> m_vertex2iblob;
-            // boost graphs are such unfriendly things
-            
-            // Find and maybe add vertex in graph corresponding to blob.
-            vertex_t vertex(const IBlob::pointer& iblob);
-            
-
-            graph_t m_graph;
             // internal methods
+            void add_slice(const ISlice::pointer& islice);
+            void add_blobs(const input_pointer& newbs);
 
             // flush graph to output queue
             void flush(output_queue& clusters);

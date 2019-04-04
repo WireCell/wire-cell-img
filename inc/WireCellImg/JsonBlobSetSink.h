@@ -3,9 +3,8 @@
 
 #include "WireCellIface/IBlobSetSink.h"
 #include "WireCellIface/IConfigurable.h"
-#include "WireCellIface/IAnodePlane.h"
-#include "WireCellIface/IAnodeFace.h"
 #include <vector>
+#include <string>
 
 namespace WireCell {
     namespace Img {             // fixme move to sio?
@@ -23,10 +22,9 @@ namespace WireCell {
 
         private:
             
-            IAnodePlane::pointer m_anode;
-            IAnodeFace::pointer m_face;
             double m_drift_speed;
             std::string m_filename;
+            int m_face;
         };
     }
 }

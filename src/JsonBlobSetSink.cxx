@@ -17,6 +17,7 @@ using namespace WireCell;
 Img::JsonBlobSetSink::JsonBlobSetSink()
     : m_drift_speed(1.6*units::mm/units::us)
     , m_filename("blobs-%02d.json")
+    , m_face(0)
 {
 }
 Img::JsonBlobSetSink::~JsonBlobSetSink()
@@ -26,8 +27,7 @@ Img::JsonBlobSetSink::~JsonBlobSetSink()
 
 void Img::JsonBlobSetSink::configure(const WireCell::Configuration& cfg)
 {
-    m_anode = Factory::find_tn<IAnodePlane>(cfg["anode"].asString());
-    m_face = m_anode->face(cfg["face"].asInt());
+    m_face = get(cfg, "face", m_face);
     m_drift_speed = get(cfg, "drift_speed", m_drift_speed);
     m_filename = get(cfg, "filename", m_filename);
 }
@@ -39,8 +39,8 @@ WireCell::Configuration Img::JsonBlobSetSink::default_configuration() const
     // File name for output files.  A "%d" will be filled in with blob
     // set ident number.
     cfg["filename"] = m_filename;
-    cfg["anode"] = "";
-    cfg["face"] = 0;
+    // Set to -1 to not apply any face filter, otherwise only consider matching face number
+    cfg["face"] = m_face;
     cfg["drift_speed"] = m_drift_speed;
     return cfg;
 }
@@ -51,14 +51,20 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
         std::cerr << "JsonBlobSetSink: eos\n";
         return true;
     }
-    const auto& coords = m_face->raygrid();
-    auto slice = bs->slice();
+
+    const auto& blobs = bs->blobs();
+    if (blobs.empty()) {
+        std::cerr << "JsonBlobSetSink: no blobs\n";
+        return true;
+    }
+
+    auto slice = blobs[0]->slice();
     auto frame = slice->frame();
     const double start = slice->start();
     const double time = frame->time();
     const double x = (start-time)*m_drift_speed;
 
-    const auto& blobs = bs->blobs();
+
 
     if (blobs.empty()) {
         //std::cerr << "JsonBlobSetSink: no input blobs\n";
@@ -79,6 +85,10 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
 
 
     for (const auto& iblob: blobs) {
+        if (m_face >= 0 and m_face != iblob->face()->ident()) {
+            continue;           // filter
+        }
+        const auto& coords = iblob->face()->raygrid();
         const auto& blob = iblob->shape();
         Json::Value jcorners = Json::arrayValue;        
         for (const auto& corner : blob.corners()) {

@@ -59,3 +59,6 @@ A per-slice blobs can be viewed:
 On Mate desktop, paraview renders tool tips with white text on yellow
 background which is unreadable.  [[https://community.slickedit.com/index.php/topic,14388.0.html][This solution]] works.  Install ~qtconfig~, "Appearance" tab, "Tune Palette..." button "ToolTipBase" and "ToolTipText" under "Central color roles".  Pick nicer color (I just made text black) and save.
 
+
+* 
+

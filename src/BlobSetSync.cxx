@@ -1,5 +1,5 @@
 #include "WireCellImg/BlobSetSync.h"
-
+#include "WireCellIface/SimpleBlob.h"
 
 #include "WireCellUtil/NamedFactory.h"
 
@@ -30,7 +30,7 @@ void Img::BlobSetSync::configure(const WireCell::Configuration& cfg)
 {
     int m = get<int>(cfg, "multiplicity", (int)m_multiplicity);
     if (m<=0) {
-        THROW(ValueError() << errmsg{"FrameFanin multiplicity must be positive"});
+        THROW(ValueError() << errmsg{"BlobSync multiplicity must be positive"});
     }
     m_multiplicity = m;
 }
@@ -45,13 +45,29 @@ std::vector<std::string>  Img::BlobSetSync::input_types()
 
 bool Img::BlobSetSync::operator()(const input_vector& invec, output_pointer& out)
 {
-    // This doesn't really do much.
-    size_t n = invec.size();
-    auto vp = new IBlobSet::vector(n);
-    for (size_t ind=0; ind<n; ++ind) {
-        (*vp)[ind] = invec[ind];
+    SimpleBlobSet* sbs = new SimpleBlobSet(0,nullptr);
+
+    int neos = 0;
+    for (const auto& ibs : invec) {
+        if (!ibs) {
+            ++neos;
+            break;
+        }
+        ISlice::pointer newslice = ibs->slice();
+        if (!sbs->slice() or sbs->slice()->start() > newslice->start()) {
+            sbs->m_slice = newslice;
+            sbs->m_ident = newslice->ident();
+        }
+        for (const auto& iblob : ibs->blobs()) {
+            sbs->m_blobs.push_back(iblob);
+        }
     }
-    out = IBlobSet::shared_vector(vp);
+    if (neos) {
+        delete sbs;
+        out = nullptr;
+        return true;
+    }
+    out = IBlobSet::pointer(sbs);
     return true;
 }
 
