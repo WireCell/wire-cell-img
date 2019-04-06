@@ -42,6 +42,7 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     out = nullptr;
     if (!slice) {
         m_blobs_seen = 0;
+        std::cerr << "GridTiling: EOS\n";
         return true;            // eos
     }
 
@@ -123,12 +124,13 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
         ++nactive_layers;
     }
     if (nactive_layers != measures.size()) {
-        std::cerr << "GridTiling: only " << nactive_layers
-                  << " active layers out of " << measures.size() << " measures spanning n ray bins:";
-        for (const auto& m : measures) {
-            std::cerr << " " << m.size();
-        }
-        std::cerr << "\n";
+        //// This will happen all the time for collection wires on an APA face toward cryostat
+        // std::cerr << "GridTiling: only " << nactive_layers
+        //           << " active layers out of " << measures.size() << " measures spanning n ray bins:";
+        // for (const auto& m : measures) {
+        //     std::cerr << " " << m.size();
+        // }
+        // std::cerr << "\n";
         // fixme: need to send empty IBlob else we create EOS
         return true;
     }

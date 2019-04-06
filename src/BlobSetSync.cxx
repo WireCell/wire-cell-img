@@ -46,6 +46,7 @@ std::vector<std::string>  Img::BlobSetSync::input_types()
 bool Img::BlobSetSync::operator()(const input_vector& invec, output_pointer& out)
 {
     SimpleBlobSet* sbs = new SimpleBlobSet(0,nullptr);
+    out = IBlobSet::pointer(sbs);
 
     int neos = 0;
     for (const auto& ibs : invec) {
@@ -63,11 +64,11 @@ bool Img::BlobSetSync::operator()(const input_vector& invec, output_pointer& out
         }
     }
     if (neos) {
-        delete sbs;
         out = nullptr;
+        std::cerr << "BlobSetSink: EOS\n";
         return true;
     }
-    out = IBlobSet::pointer(sbs);
+    std::cerr << "BlobSetSink: sync'ed " << sbs->m_blobs.size() << " blobs\n";
     return true;
 }
 

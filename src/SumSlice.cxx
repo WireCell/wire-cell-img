@@ -100,6 +100,8 @@ bool Img::SumSlicer::operator()(const input_pointer& in, output_pointer& out)
 bool Img::SumSlices::operator()(const input_pointer& in, output_queue& slices)
 {
     if (!in) {
+        std::cerr<< "SumSlices: EOS\n";
+        slices.push_back(nullptr);
         return true;            // eos
     }
 
@@ -116,12 +118,12 @@ bool Img::SumSlices::operator()(const input_pointer& in, output_queue& slices)
         for (const auto& a : s->activity()) {
             qtot += a.second;
         }
-        std::cerr << "SumSlices: #" << s->ident()
-                  << " t=" << s->start() << " + " << s->span()
-                  << " qtot=" << qtot
-                  << " in nchan=" << s->activity().size()
-                  << std::endl;
-        ///
+        // std::cerr << "SumSlices: #" << s->ident()
+        //           << " t=" << s->start() << " + " << s->span()
+        //           << " qtot=" << qtot
+        //           << " in nchan=" << s->activity().size()
+        //           << std::endl;
+
 
         slices.push_back(ISlice::pointer(s));
     }

@@ -150,51 +150,81 @@ local blobsync = g.pnode({
 }, nin=2, nout=1);
 
 
-
-local blobification =
+local blobfinding =
     g.intern(innodes=[slice_fanout],
              outnodes=[blobsync],
              centernodes=tilings,
              edges=
              [g.edge(slice_fanout, tilings[n], n, 0) for n in [0,1]] +
              [g.edge(tilings[n], blobsync, 0, n) for n in [0,1]],
-             name='blobification');
+             name='blobfinding');
 
 
-local clustering = g.pnode({ type: "BlobClustering" }, nin=1, nout=1);
+local blobclustering = g.pnode({
+    type: "BlobClustering",
+    name: "blobclustering",
+    data:  {
+        spans : 1.0,
+    }
+}, nin=1, nout=1);
+
+local blobgrouping = g.pnode({
+    type: "BlobGrouping",
+    name: "blobgrouping",
+    data:  {
+    }
+}, nin=1, nout=1);
 
 local blobsolving = g.pnode({
     type: "BlobSolving",
-    name: "blobsolving",        // will need one per anode eventually
-    data: {
-        anode: wc.tn(anode),
+    name: "blobsolving",
+    data:  {
     }
-}, nin=1, nout=1, uses=[anode]);
+}, nin=1, nout=1);
 
-local jsonblobsinks = [
-    g.pnode({
-        type: "JsonBlobSetSink",
-        name: "blobsink%d"%face,
-        data: {
-            anode: wc.tn(anode),
-            face: face,
-            filename: "test-pdsp-face%d-%%02d.json" % face,
-        },
-    }, nin=1, nout=0, uses=[anode]) for face in [0,1]];
 
-local sink =
-    g.intern(innodes = [blobsplit],
-             outnodes = [],
-             centernodes = jsonblobsinks,
-             edges=
-             [g.edge(blobsplit, jsonblobsinks[n], n, 0) for n in [0,1]],
-             name="blobsink");
+// local clustering = g.pnode({ type: "BlobClustering" }, nin=1, nout=1);
+
+// local blobsolving = g.pnode({
+//     type: "BlobSolving",
+//     name: "blobsolving",        // will need one per anode eventually
+//     data: {
+//         anode: wc.tn(anode),
+//     }
+// }, nin=1, nout=1, uses=[anode]);
+
+// local jsonblobsinks = [
+//     g.pnode({
+//         type: "JsonBlobSetSink",
+//         name: "blobsink%d"%face,
+//         data: {
+//             anode: wc.tn(anode),
+//             face: face,
+//             filename: "test-pdsp-face%d-%%02d.json" % face,
+//         },
+//     }, nin=1, nout=0, uses=[anode]) for face in [0,1]];
+
+// local sink =
+//     g.intern(innodes = [blobsplit],
+//              outnodes = [],
+//              centernodes = jsonblobsinks,
+//              edges=
+//              [g.edge(blobsplit, jsonblobsinks[n], n, 0) for n in [0,1]],
+//              name="blobsink");
              
+
+local clustersink = g.pnode({
+    type: "ClusterSink",
+    data: {
+        filename: "clusters-%d.dot"
+    }
+}, nin=1, nout=0);
 
 local graph = g.pipeline([depos, deposio, drifter,
                           deposplat,
                           //bagger, simsn, sigproc,
-                          frameio, slices, blobification, blobsolver, sink]);
+                          frameio, slices,
+                          blobfinding, blobclustering, blobgrouping, blobsolving, clustersink]);
 
 local cmdline = {
     type: "wire-cell",

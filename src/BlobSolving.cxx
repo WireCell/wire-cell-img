@@ -1,9 +1,11 @@
 #include "WireCellImg/BlobSolving.h"
 #include "WireCellIface/ICluster.h"
 #include "WireCellIface/SimpleBlob.h"
+#include "WireCellIface/SimpleCluster.h"
 #include "WireCellUtil/Ress.h"
 #include "WireCellUtil/IndexedSet.h"
 #include "WireCellUtil/NamedFactory.h"
+
 
 WIRECELL_FACTORY(BlobSolving, WireCell::Img::BlobSolving,
                  WireCell::IClusterFilter, WireCell::IConfigurable)
@@ -51,15 +53,17 @@ double measure_sum(const IChannel::shared_vector& imeas, const ISlice::pointer& 
 // this function can be replaced with a functional object slected
 // based on configuration.
 static
-double blob_weight(IBlob::pointer iblob, ISlice::pointer islice, cluster_indexed_graph_t& grind)
+double blob_weight(IBlob::pointer iblob, ISlice::pointer islice, const cluster_indexed_graph_t& grind)
 {
     // magic numbers!
     const double default_weight = 9;
     const double reduction = 3;
     const size_t homer = 2;     // Max Power
 
+
     std::unordered_set<int> slices;
-    for (auto oblob : neighbors_oftype<IBlob::pointer>(grind, iblob)) {
+    IBlob::vector blobs = neighbors_oftype<IBlob::pointer>(grind, iblob);
+    for (auto oblob : blobs) {
         for (auto oslice : neighbors_oftype<ISlice::pointer>(grind, oblob)) {
             slices.insert(oslice->ident());
         }
@@ -73,15 +77,10 @@ void solve_slice(cluster_indexed_graph_t& grind, ISlice::pointer islice)
     std::vector< std::vector<int> > b2minds;
     IndexedSet<IBlob::pointer> blobs;
     IndexedSet<IChannel::shared_vector> measures;
-    for (auto iblob :  neighbors_oftype<IBlob::pointer>(grind, islice)) {
+    for (IBlob::pointer iblob :  neighbors_oftype<IBlob::pointer>(grind, islice)) {
         blobs(iblob);
-        int connectivity = 0;
         std::vector<int> minds;
         for (auto neigh : grind.neighbors(iblob)) {
-            if (neigh.code() == 'b') {
-                ++connectivity; // note, this is blind to which slice the neighbor is in
-                continue;
-            }
             if (neigh.code() == 'm') {
                 IChannel::shared_vector imeas = std::get<IChannel::shared_vector>(neigh.ptr);
                 int mind = measures(imeas);
@@ -112,7 +111,7 @@ void solve_slice(cluster_indexed_graph_t& grind, ISlice::pointer islice)
     Ress::matrix_t geom = Ress::matrix_t::Zero(nmeasures, nblobs);
     
     for (size_t bind = 0; bind < nblobs; ++bind) {
-        auto iblob = blobs.collection[bind];
+        IBlob::pointer iblob = blobs.collection[bind];
         init(bind) = iblob->value();
         weight(bind) = blob_weight(iblob, islice, grind);
         const auto& minds = b2minds[bind];
@@ -132,10 +131,9 @@ void solve_slice(cluster_indexed_graph_t& grind, ISlice::pointer islice)
         auto oblob = blobs.collection[ind];
         const double value = solved[ind];
         const double unc = 0.0; // fixme, derive from solution + covariance
-        auto nblob = std::make_shared<SimpleBlob>(oblob->ident(), value, unc,
-                                                  oblob->shape(), islice, oblob->face());
-        auto vtx = grind.vertex(oblob);
-        grind.graph()[vtx].ptr = nblob;
+        IBlob::pointer nblob = std::make_shared<SimpleBlob>(oblob->ident(), value, unc,
+                                                            oblob->shape(), islice, oblob->face());
+        grind.replace(oblob, nblob);
     }
 
 }
@@ -144,16 +142,16 @@ bool Img::BlobSolving::operator()(const input_pointer& in, output_pointer& out)
 {
     if (!in) {
         out = nullptr;
+        std::cerr << "BlobSolving: EOS\n";
         return true;
     }
     
     // start with a writable copy.
     cluster_indexed_graph_t grind(in->graph());
-
-
     for (auto islice : oftype<ISlice::pointer>(grind)) {
         solve_slice(grind, islice);
     }
 
+    out = std::make_shared<SimpleCluster>(grind.graph());    
     return true;
 }

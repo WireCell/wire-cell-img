@@ -46,12 +46,22 @@ std::vector<std::string> Img::SliceFanout::output_types()
 
 bool Img::SliceFanout::operator()(const input_pointer& in, output_vector& outv)
 {
+    outv.resize(m_multiplicity);
+
+    if (!in) {
+        std::cerr << "SliceFanout: sending out "<< m_multiplicity << " EOSes\n";
+        for (size_t ind=0; ind<m_multiplicity; ++ind) {
+            outv[ind] = nullptr;
+        }
+        return true;
+    }
+
+
     std::cerr << "SliceFanout: " << m_multiplicity << "x of #" << in->ident()
                   << " t=" << in->start() << " + " << in->span()
                   << " in nchan=" << in->activity().size()
                   << std::endl;
         
-    outv.resize(m_multiplicity);
 
     for (size_t ind=0; ind<m_multiplicity; ++ind) {
         outv[ind] = in;

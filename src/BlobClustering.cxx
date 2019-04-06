@@ -151,14 +151,18 @@ bool Img::BlobClustering::graph_bs(const input_pointer& newbs)
 bool Img::BlobClustering::operator()(const input_pointer& blobset, output_queue& clusters)
 {
     if (!blobset) {             // eos
+        std::cerr << "BlobClustering: EOS\n";
         flush(clusters);
         clusters.push_back(nullptr); // forward eos
         return true;
     }
 
+    std::cerr << "BlobClustering: got " << blobset->blobs().size() << " blobs\n"; 
+
     bool gap = graph_bs(blobset);
     if (gap) {
         flush(clusters);
+        std::cerr << "BlobClustering: sending " << clusters.size() << " clusters\n";
         // note: flush fast to keep memory usage in this component
         // down and because in an MT job, downstream components might
         // benefit to start consuming clusters ASAP.  We do NOT want
@@ -168,6 +172,10 @@ bool Img::BlobClustering::operator()(const input_pointer& blobset, output_queue&
     }
 
     intern(blobset);
+
+    auto be = boost::vertices(m_grind.graph());
+    size_t nnodes = be.second-be.first;
+    std::cerr << "BlobClustering: holding " << nnodes << " nodes\n";
 
     return true;
 }
