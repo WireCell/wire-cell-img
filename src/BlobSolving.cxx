@@ -142,7 +142,6 @@ bool Img::BlobSolving::operator()(const input_pointer& in, output_pointer& out)
 {
     if (!in) {
         out = nullptr;
-        std::cerr << "BlobSolving: EOS\n";
         return true;
     }
     

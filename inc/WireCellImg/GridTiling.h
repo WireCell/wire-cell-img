@@ -18,6 +18,7 @@
 #include "WireCellIface/IConfigurable.h"
 #include "WireCellIface/IAnodePlane.h"
 #include "WireCellIface/IAnodeFace.h"
+#include "WireCellUtil/Logging.h"
 
 namespace WireCell {
     namespace Img {
@@ -37,7 +38,7 @@ namespace WireCell {
             size_t m_blobs_seen;
             IAnodePlane::pointer m_anode;
             IAnodeFace::pointer m_face;
-            
+            Log::logptr_t l;
         };
     }
 }

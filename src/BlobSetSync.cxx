@@ -3,14 +3,13 @@
 
 #include "WireCellUtil/NamedFactory.h"
 
-#include <iostream>
-
 WIRECELL_FACTORY(BlobSetSync, WireCell::Img::BlobSetSync,
                  WireCell::IBlobSetFanin, WireCell::IConfigurable)
 using namespace WireCell;
 
 Img::BlobSetSync::BlobSetSync()
     : m_multiplicity(0)
+    , l(Log::logger("BlobSetSync"))
 {
 }
 
@@ -65,10 +64,10 @@ bool Img::BlobSetSync::operator()(const input_vector& invec, output_pointer& out
     }
     if (neos) {
         out = nullptr;
-        std::cerr << "BlobSetSink: EOS\n";
+        l->debug("BlobSetSink: EOS");
         return true;
     }
-    std::cerr << "BlobSetSink: sync'ed " << sbs->m_blobs.size() << " blobs\n";
+    l->debug("BlobSetSink: sync'ed {} blobs", sbs->m_blobs.size());
     return true;
 }
 

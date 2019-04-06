@@ -32,6 +32,7 @@
 #include "WireCellIface/IBlobSet.h"
 
 #include "WireCellUtil/IndexedGraph.h"
+#include "WireCellUtil/Logging.h"
 
 namespace WireCell {
     namespace Img {
@@ -73,6 +74,7 @@ namespace WireCell {
             // Blob set must be kept, this saves them.
             void intern(const input_pointer& newbs);
 
+            Log::logptr_t l;
         };
     }
 }

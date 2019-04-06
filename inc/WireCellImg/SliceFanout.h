@@ -3,7 +3,7 @@
 
 #include "WireCellIface/ISliceFanout.h"
 #include "WireCellIface/IConfigurable.h"
-
+#include "WireCellUtil/Logging.h"
 
 namespace WireCell {
     namespace Img {
@@ -26,6 +26,7 @@ namespace WireCell {
 
         private:
             size_t m_multiplicity;
+            Log::logptr_t l;
         };
     }
 }

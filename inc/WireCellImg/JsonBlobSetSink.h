@@ -3,6 +3,7 @@
 
 #include "WireCellIface/IBlobSetSink.h"
 #include "WireCellIface/IConfigurable.h"
+#include "WireCellUtil/Logging.h"
 #include <vector>
 #include <string>
 
@@ -25,6 +26,7 @@ namespace WireCell {
             double m_drift_speed;
             std::string m_filename;
             int m_face;
+            Log::logptr_t l;
         };
     }
 }

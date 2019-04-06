@@ -3,7 +3,6 @@
 #include "WireCellUtil/NamedFactory.h"
 #include "WireCellUtil/Exceptions.h"
 
-#include <iostream>
 
 WIRECELL_FACTORY(SliceFanout, WireCell::Img::SliceFanout,
                  WireCell::ISliceFanout, WireCell::IConfigurable)
@@ -13,6 +12,7 @@ using namespace WireCell;
 
 Img::SliceFanout::SliceFanout(size_t multiplicity)
     : m_multiplicity(multiplicity)
+    , l(Log::logger("SliceFanout"))
 {
 }
 Img::SliceFanout::~SliceFanout()
@@ -30,6 +30,7 @@ void Img::SliceFanout::configure(const WireCell::Configuration& cfg)
 {
     int m = get<int>(cfg, "multiplicity", (int)m_multiplicity);
     if (m<=0) {
+        l->error("SliceFanout multiplicity must be positive");
         THROW(ValueError() << errmsg{"SliceFanout multiplicity must be positive"});
     }
     m_multiplicity = m;
@@ -49,19 +50,16 @@ bool Img::SliceFanout::operator()(const input_pointer& in, output_vector& outv)
     outv.resize(m_multiplicity);
 
     if (!in) {
-        std::cerr << "SliceFanout: sending out "<< m_multiplicity << " EOSes\n";
+        l->debug("SliceFanout: sending out {} EOSes", m_multiplicity);
         for (size_t ind=0; ind<m_multiplicity; ++ind) {
             outv[ind] = nullptr;
         }
         return true;
     }
 
-
-    std::cerr << "SliceFanout: " << m_multiplicity << "x of #" << in->ident()
-                  << " t=" << in->start() << " + " << in->span()
-                  << " in nchan=" << in->activity().size()
-                  << std::endl;
-        
+    l->debug("{}x of #{} t={} + {} in nchan={}",
+             m_multiplicity, in->ident(), in->start(), in->span(),
+             in->activity().size());
 
     for (size_t ind=0; ind<m_multiplicity; ++ind) {
         outv[ind] = in;

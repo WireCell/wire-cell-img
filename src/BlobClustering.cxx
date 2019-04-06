@@ -5,7 +5,6 @@
 
 #include <boost/graph/graphviz.hpp>
 
-#include <iostream>
 
 WIRECELL_FACTORY(BlobClustering, WireCell::Img::BlobClustering,
                  WireCell::IClustering, WireCell::IConfigurable)
@@ -16,6 +15,7 @@ using namespace WireCell;
 Img::BlobClustering::BlobClustering()
     : m_spans(1.0)
     , m_last_bs(nullptr)
+    , l(Log::logger("BlobClustering"))
 {
 }
 Img::BlobClustering::~BlobClustering()
@@ -151,18 +151,18 @@ bool Img::BlobClustering::graph_bs(const input_pointer& newbs)
 bool Img::BlobClustering::operator()(const input_pointer& blobset, output_queue& clusters)
 {
     if (!blobset) {             // eos
-        std::cerr << "BlobClustering: EOS\n";
+        l->debug("EOS");
         flush(clusters);
         clusters.push_back(nullptr); // forward eos
         return true;
     }
 
-    std::cerr << "BlobClustering: got " << blobset->blobs().size() << " blobs\n"; 
+    l->debug("got {} blobs", blobset->blobs().size());
 
     bool gap = graph_bs(blobset);
     if (gap) {
         flush(clusters);
-        std::cerr << "BlobClustering: sending " << clusters.size() << " clusters\n";
+        l->debug("sending {} clusters", clusters.size());
         // note: flush fast to keep memory usage in this component
         // down and because in an MT job, downstream components might
         // benefit to start consuming clusters ASAP.  We do NOT want
@@ -175,7 +175,7 @@ bool Img::BlobClustering::operator()(const input_pointer& blobset, output_queue&
 
     auto be = boost::vertices(m_grind.graph());
     size_t nnodes = be.second-be.first;
-    std::cerr << "BlobClustering: holding " << nnodes << " nodes\n";
+    l->debug("holding {}", nnodes);
 
     return true;
 }

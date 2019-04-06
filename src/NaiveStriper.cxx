@@ -102,8 +102,7 @@ bool Img::NaiveStriper::operator()(const input_pointer& slice, output_pointer& o
     // between Boost Graph's subgraph index and a corresponding stripe.
     std::unordered_map<vertex_t, int> subclusters;
     std::unordered_map<int, Img::Data::Stripe*> cluster_to_stripe;
-    size_t num = boost::connected_components(graph, boost::make_assoc_property_map(subclusters));
-    std::cerr << "Img::NaiveStriper: found " << num << " stripes in slice " << slice->ident() << std::endl;
+    boost::connected_components(graph, boost::make_assoc_property_map(subclusters));
 
     // Collect channels of like cluster number into stripes
     for (auto& p : subclusters) {
@@ -117,7 +116,6 @@ bool Img::NaiveStriper::operator()(const input_pointer& slice, output_pointer& o
             cluster_to_stripe[p.second] = stripe = new Img::Data::Stripe(p.first);
         }
         stripe->append(cv.first, cv.second);
-        std::cout << "\tch: " << cv.first->ident() << " with q=" << cv.second << std::endl;
     }
     
     auto sliceset = new Img::Data::StripeSet(slice->ident());

@@ -5,8 +5,6 @@
 #include "WireCellUtil/NamedFactory.h"
 
 #include <fstream>
-#include <iostream>             // debug
-
 
 WIRECELL_FACTORY(JsonBlobSetSink, WireCell::Img::JsonBlobSetSink,
                  WireCell::IBlobSetSink, WireCell::IConfigurable)
@@ -18,6 +16,7 @@ Img::JsonBlobSetSink::JsonBlobSetSink()
     : m_drift_speed(1.6*units::mm/units::us)
     , m_filename("blobs-%02d.json")
     , m_face(0)
+    , l(Log::logger("JsonBlobSetSink"))
 {
 }
 Img::JsonBlobSetSink::~JsonBlobSetSink()
@@ -48,13 +47,13 @@ WireCell::Configuration Img::JsonBlobSetSink::default_configuration() const
 bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
 {
     if (!bs) {
-        std::cerr << "JsonBlobSetSink: eos\n";
+        l->debug("JsonBlobSetSink: eos");
         return true;
     }
 
     const auto& blobs = bs->blobs();
     if (blobs.empty()) {
-        std::cerr << "JsonBlobSetSink: no blobs\n";
+        l->info("JsonBlobSetSink: no blobs");
         return true;
     }
 
@@ -64,22 +63,10 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
     const double time = frame->time();
     const double x = (start-time)*m_drift_speed;
 
-
-
-    if (blobs.empty()) {
-        //std::cerr << "JsonBlobSetSink: no input blobs\n";
-        return true;
-    }
-
-    std::cerr << "JsonBlobSetSink: frame:"<<frame->ident() <<", slice:"<<slice->ident()
-              << " set:" << bs->ident()
-              << " time=" << time/units::ms << "ms, start="<<start/units::ms << "ms"
-              << " x=" << x
-              << " nblobs=" << blobs.size()
-              << std::endl;
-
-    //const double span = slice->span();
-    //const double dx = span/m_drift_speed;
+    l->debug("JsonBlobSetSink: frame:{}, slice:{} set:{} time:{} ms, start={} ms x:{} nblobs:{}",
+             frame->ident(), slice->ident(), bs->ident(),
+             time/units::ms, start/units::ms,
+             x,  blobs.size());
 
     Json::Value jblobs = Json::arrayValue;
 
@@ -105,13 +92,13 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
         jblob["values"]["uncert"] = iblob->uncertainty();
         jblob["values"]["ident"] = iblob->ident();
         jblob["values"]["inset"] = jblobs.size();
-        //std::cerr << jblob << std::endl;
+
         jblobs.append(jblob);
     }
 
 
     Json::Value top;
-    //top["points"] = points;
+
     top["blobs"] = jblobs;
 
     std::string fname = m_filename;
