@@ -3,6 +3,7 @@
 
 #include "WireCellUtil/String.h"
 #include "WireCellUtil/NamedFactory.h"
+#include "WireCellUtil/Logging.h"
 
 #include <fstream>
 #include <sstream>
@@ -100,7 +101,7 @@ bool Img::ClusterSink::operator()(const ICluster::pointer& cluster)
         fname = String::format(m_filename, cluster->ident());
     }
     std::ofstream out(fname.c_str());
-    std::cerr << "Writing graphviz to " << fname << "\n";
+    spdlog::info("Writing graphviz to {}", fname);
     boost::write_graphviz(out, cluster->graph(), label_writer_t{cluster->graph()});
 
     return true;

@@ -16,7 +16,7 @@ Img::JsonBlobSetSink::JsonBlobSetSink()
     : m_drift_speed(1.6*units::mm/units::us)
     , m_filename("blobs-%02d.json")
     , m_face(0)
-    , l(Log::logger("JsonBlobSetSink"))
+    , l(Log::logger("io"))
 {
 }
 Img::JsonBlobSetSink::~JsonBlobSetSink()

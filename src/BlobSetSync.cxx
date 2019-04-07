@@ -9,7 +9,7 @@ using namespace WireCell;
 
 Img::BlobSetSync::BlobSetSync()
     : m_multiplicity(0)
-    , l(Log::logger("BlobSetSync"))
+    , l(Log::logger("glue"))
 {
 }
 
@@ -64,10 +64,10 @@ bool Img::BlobSetSync::operator()(const input_vector& invec, output_pointer& out
     }
     if (neos) {
         out = nullptr;
-        l->debug("BlobSetSink: EOS");
+        SPDLOG_LOGGER_TRACE(l,"BlobSetSink: EOS");
         return true;
     }
-    l->debug("BlobSetSink: sync'ed {} blobs", sbs->m_blobs.size());
+    SPDLOG_LOGGER_TRACE(l,"BlobSetSink: sync'ed {} blobs", sbs->m_blobs.size());
     return true;
 }
 

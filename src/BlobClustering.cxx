@@ -15,7 +15,7 @@ using namespace WireCell;
 Img::BlobClustering::BlobClustering()
     : m_spans(1.0)
     , m_last_bs(nullptr)
-    , l(Log::logger("BlobClustering"))
+    , l(Log::logger("img"))
 {
 }
 Img::BlobClustering::~BlobClustering()
@@ -151,18 +151,18 @@ bool Img::BlobClustering::graph_bs(const input_pointer& newbs)
 bool Img::BlobClustering::operator()(const input_pointer& blobset, output_queue& clusters)
 {
     if (!blobset) {             // eos
-        l->debug("EOS");
+        l->debug("BlobClustering: EOS");
         flush(clusters);
         clusters.push_back(nullptr); // forward eos
         return true;
     }
 
-    l->debug("got {} blobs", blobset->blobs().size());
+    SPDLOG_LOGGER_TRACE(l,"BlobClustering: got {} blobs", blobset->blobs().size());
 
     bool gap = graph_bs(blobset);
     if (gap) {
         flush(clusters);
-        l->debug("sending {} clusters", clusters.size());
+        l->debug("BlobClustering: sending {} clusters", clusters.size());
         // note: flush fast to keep memory usage in this component
         // down and because in an MT job, downstream components might
         // benefit to start consuming clusters ASAP.  We do NOT want
@@ -173,9 +173,7 @@ bool Img::BlobClustering::operator()(const input_pointer& blobset, output_queue&
 
     intern(blobset);
 
-    auto be = boost::vertices(m_grind.graph());
-    size_t nnodes = be.second-be.first;
-    l->debug("holding {}", nnodes);
+    SPDLOG_LOGGER_TRACE(l,"BlobClustering: holding {}", boost::num_vertices(m_grind.graph()));
 
     return true;
 }

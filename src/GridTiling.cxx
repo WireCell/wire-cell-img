@@ -13,7 +13,7 @@ using namespace WireCell::RayGrid;
 
 Img::GridTiling::GridTiling()
     : m_blobs_seen(0)
-    , l(Log::logger("GridTiling"))
+    , l(Log::logger("img"))
 {
 }
 
@@ -43,7 +43,7 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     out = nullptr;
     if (!slice) {
         m_blobs_seen = 0;
-        l->debug("EOS");
+        SPDLOG_LOGGER_TRACE(l, "GridTiling: EOS");
         return true;            // eos
     }
 
@@ -59,14 +59,14 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     const auto face = m_face->ident();
     auto chvs = slice->activity();
     if (chvs.empty()) {
-        l->info("face:{} slice:{} no activity", face,  slice->ident());
+        SPDLOG_LOGGER_TRACE(l,"GridTiling: face:{} slice:{} no activity", face,  slice->ident());
         return true;
     }
 
     const int nactivities = slice->activity().size();
     int total_activity=0;
     if (nactivities < m_face->nplanes()) {
-        l->info("too few activities given");
+        SPDLOG_LOGGER_TRACE(l,"GridTiling: too few activities given");
         return true;
     }
 
@@ -90,7 +90,7 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     }
 
     if (!total_activity) {
-        l->info("slice {} no activity", slice->ident());
+        SPDLOG_LOGGER_TRACE(l,"GridTiling: {} no activity", slice->ident());
         // fixme: need to send empty IBlob else we create EOS
         return true;
     }
@@ -117,7 +117,7 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
         SimpleBlob* sb = new SimpleBlob(m_blobs_seen++, blob_value, 0.0, blob, slice, m_face);
         sbs->m_blobs.push_back(IBlob::pointer(sb));
     }
-    l->debug("found {} blobs in slice {}", sbs->m_blobs.size(), slice->ident());
+    SPDLOG_LOGGER_TRACE(l,"GridTiling: found {} blobs in slice {}", sbs->m_blobs.size(), slice->ident());
 
     return true;
 }

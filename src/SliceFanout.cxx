@@ -12,7 +12,7 @@ using namespace WireCell;
 
 Img::SliceFanout::SliceFanout(size_t multiplicity)
     : m_multiplicity(multiplicity)
-    , l(Log::logger("SliceFanout"))
+    , l(Log::logger("glue"))
 {
 }
 Img::SliceFanout::~SliceFanout()
@@ -50,14 +50,14 @@ bool Img::SliceFanout::operator()(const input_pointer& in, output_vector& outv)
     outv.resize(m_multiplicity);
 
     if (!in) {
-        l->debug("SliceFanout: sending out {} EOSes", m_multiplicity);
+        SPDLOG_LOGGER_TRACE(l,"SliceFanout: sending out {} EOSes", m_multiplicity);
         for (size_t ind=0; ind<m_multiplicity; ++ind) {
             outv[ind] = nullptr;
         }
         return true;
     }
 
-    l->debug("{}x of #{} t={} + {} in nchan={}",
+    SPDLOG_LOGGER_TRACE(l, "SliceFanout: {}x of #{} t={} + {} in nchan={}",
              m_multiplicity, in->ident(), in->start(), in->span(),
              in->activity().size());
 
