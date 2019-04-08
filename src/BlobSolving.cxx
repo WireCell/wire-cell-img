@@ -138,6 +138,7 @@ void solve_slice(cluster_indexed_graph_t& grind, ISlice::pointer islice)
 
 }
 
+
 bool Img::BlobSolving::operator()(const input_pointer& in, output_pointer& out)
 {
     if (!in) {
@@ -151,6 +152,25 @@ bool Img::BlobSolving::operator()(const input_pointer& in, output_pointer& out)
         solve_slice(grind, islice);
     }
 
-    out = std::make_shared<SimpleCluster>(grind.graph());    
+    // apply user's threshold
+    std::vector<cluster_vertex_t> dead;
+    for (auto iblob : oftype<IBlob::pointer>(grind)) {
+        if (iblob->value() >= m_threshold) {
+            continue;
+        }
+        auto vd = grind.vertex(iblob);
+        dead.push_back(vd);
+    }
+    auto& gr = grind.graph();   // do NOT use grind after this
+    for (auto vd : dead) {
+        // Removing vertices invalidates grind's index.
+        boost::clear_vertex(vd, gr);
+        boost::remove_vertex(vd, gr);
+    }
+    // note, this can leave nodes which are disconnected in some
+    // sense.  Eg, remove all blobs from a slice leaves the s-node
+    // with no edges.  Likewise, m-nodes may be left isolated.
+
+    out = std::make_shared<SimpleCluster>(gr);
     return true;
 }

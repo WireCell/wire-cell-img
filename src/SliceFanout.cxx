@@ -30,7 +30,7 @@ void Img::SliceFanout::configure(const WireCell::Configuration& cfg)
 {
     int m = get<int>(cfg, "multiplicity", (int)m_multiplicity);
     if (m<=0) {
-        l->error("SliceFanout multiplicity must be positive");
+        l->critical("SliceFanout multiplicity must be positive");
         THROW(ValueError() << errmsg{"SliceFanout multiplicity must be positive"});
     }
     m_multiplicity = m;
