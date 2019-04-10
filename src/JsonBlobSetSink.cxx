@@ -106,6 +106,10 @@ bool Img::JsonBlobSetSink::operator()(const IBlobSet::pointer& bs)
         fname = String::format(m_filename, bs->ident());
     }
     std::ofstream fstr(fname);
+    if (!fstr) {
+        l->error("Failed to open for writing: %s", fname);
+        return false;
+    }
     fstr << top;
 
 

@@ -179,6 +179,7 @@ local blobsolving = g.pnode({
     type: "BlobSolving",
     name: "blobsolving",
     data:  {
+        threshold: 1000
     }
 }, nin=1, nout=1);
 
@@ -213,6 +214,14 @@ local blobsolving = g.pnode({
 //              name="blobsink");
              
 
+local clustertap = g.pnode({
+    type: "JsonClusterTap",
+    data: {
+        filename: "clusters-%04d.json",
+        drift_speed: params.lar.drift_speed,
+    },
+}, nin=1, nout=1);
+
 local clustersink = g.pnode({
     type: "ClusterSink",
     data: {
@@ -224,7 +233,11 @@ local graph = g.pipeline([depos, deposio, drifter,
                           deposplat,
                           //bagger, simsn, sigproc,
                           frameio, slices,
-                          blobfinding, blobclustering, blobgrouping, blobsolving, clustersink]);
+                          blobfinding, blobclustering,
+                          blobgrouping,
+                          blobsolving,
+                          clustertap,
+                          clustersink]);
 
 local cmdline = {
     type: "wire-cell",
