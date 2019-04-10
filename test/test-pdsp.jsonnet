@@ -179,7 +179,7 @@ local blobsolving = g.pnode({
     type: "BlobSolving",
     name: "blobsolving",
     data:  {
-        threshold: 1000
+        threshold: 0
     }
 }, nin=1, nout=1);
 
