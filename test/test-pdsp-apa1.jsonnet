@@ -19,7 +19,7 @@ local apa_index = 1;
 
 // for now, we focus on just one face.  The 0 face is toward the
 // positive-X direction.
-local face = 1;
+//local face = 1;
 
 local frame_tags = if fast_splat then [] else ["wiener%d"%apa_index, "gauss%d"%apa_index];
 local slice_tag = if fast_splat then "" else "gauss%d"%apa_index;
@@ -125,28 +125,88 @@ local slices = g.pnode({
     },
 }, nin=1, nout=1, uses=[anode]);
 
-local tiling = g.pnode({
-    type: "GridTiling",
+local slice_fanout = g.pnode({
+    type: "SliceFanout",
+    name: "slicefanout",
+    data: { multiplicity: 2 },
+}, nin=1, nout=2);
+
+local tilings = [
+    g.pnode({
+        type: "GridTiling",
+        name: "tiling%d"%face,
+        data: {
+            anode: wc.tn(anode),
+            face: face,
+        }
+    }, nin=1, nout=1, uses=[anode]) for face in [0,1]];
+
+local blobsync = g.pnode({
+    type: "BlobSetSync",
+    name: "blobsetsync",        // will need one per anode eventually
     data: {
-        anode: wc.tn(anode),
-        face: face,
+        multiplicity: 2,
     }
-}, nin=1, nout=1, uses=[anode]);
+}, nin=2, nout=1);
 
-local sink = g.pnode({
-    type: "JsonBlobSetSink",
+
+local blobfinding =
+    g.intern(innodes=[slice_fanout],
+             outnodes=[blobsync],
+             centernodes=tilings,
+             edges=
+             [g.edge(slice_fanout, tilings[n], n, 0) for n in [0,1]] +
+             [g.edge(tilings[n], blobsync, 0, n) for n in [0,1]],
+             name='blobfinding');
+
+
+local blobclustering = g.pnode({
+    type: "BlobClustering",
+    name: "blobclustering",
+    data:  {
+        spans : 1.0,
+    }
+}, nin=1, nout=1);
+
+local blobgrouping = g.pnode({
+    type: "BlobGrouping",
+    name: "blobgrouping",
+    data:  {
+    }
+}, nin=1, nout=1);
+
+local blobsolving = g.pnode({
+    type: "BlobSolving",
+    name: "blobsolving",
+    data:  {
+        threshold: 0
+    }
+}, nin=1, nout=1);
+
+local clustertap = g.pnode({
+    type: "JsonClusterTap",
     data: {
-        anode: wc.tn(anode),
-        face: face,
-        filename: "test-pdsp-%02d.json",
+        filename: "clusters-%04d.json",
+        drift_speed: params.lar.drift_speed,
     },
-}, nin=1, nout=0, uses=[anode]);
+}, nin=1, nout=1);
 
+local clustersink = g.pnode({
+    type: "ClusterSink",
+    data: {
+        filename: "clusters-%d.dot"
+    }
+}, nin=1, nout=0);
 
 local graph = g.pipeline([depos, deposio, drifter,
                           deposplat,
                           //bagger, simsn, sigproc,
-                          frameio, slices, tiling, sink]);
+                          frameio, slices,
+                          blobfinding, blobclustering,
+                          blobgrouping,
+                          blobsolving,
+                          clustertap,
+                          clustersink]);
 
 local cmdline = {
     type: "wire-cell",

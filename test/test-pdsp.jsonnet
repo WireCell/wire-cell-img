@@ -4,15 +4,13 @@
 // Set to true for DepoSplat fast sim+sigproc, else use full sim/sigproc
 local fast_splat = true;
 
-// It sets up PDSP but with only one APA to make test jobs faster.
-
 local wc = import "wirecell.jsonnet";
 local g = import "pgraph.jsonnet";
 local f = import 'pgrapher/experiment/pdsp/funcs.jsonnet';
 local io = import "pgrapher/common/fileio.jsonnet";
 
 
-local params6 = import "pgrapher/experiment/pdsp/simparams.jsonnet";
+local params = import "pgrapher/experiment/pdsp/simparams.jsonnet";
 
 // APA 1 is on positive global-X side of pD SP
 local apa_index = 1;
@@ -24,18 +22,6 @@ local apa_index = 1;
 local frame_tags = if fast_splat then [] else ["wiener%d"%apa_index, "gauss%d"%apa_index];
 local slice_tag = if fast_splat then "" else "gauss%d"%apa_index;
 
-// Hack to strip out just one APA.
-//
-// BEWARE: you must manually make bounds match the chosen apa_index
-local params = params6 {
-    det : super.det {
-        bounds : {
-            tail: wc.point(0.0, 0.0, 0.0, wc.m),
-            head: wc.point(4.0, 2.0, 7.0, wc.m),
-        },
-        volumes: [ super.volumes[apa_index] ]
-    }
-};
 
 local tools_maker = import "pgrapher/common/tools.jsonnet";
 local sim_maker = import "pgrapher/experiment/pdsp/sim.jsonnet";
@@ -183,36 +169,6 @@ local blobsolving = g.pnode({
     }
 }, nin=1, nout=1);
 
-
-// local clustering = g.pnode({ type: "BlobClustering" }, nin=1, nout=1);
-
-// local blobsolving = g.pnode({
-//     type: "BlobSolving",
-//     name: "blobsolving",        // will need one per anode eventually
-//     data: {
-//         anode: wc.tn(anode),
-//     }
-// }, nin=1, nout=1, uses=[anode]);
-
-// local jsonblobsinks = [
-//     g.pnode({
-//         type: "JsonBlobSetSink",
-//         name: "blobsink%d"%face,
-//         data: {
-//             anode: wc.tn(anode),
-//             face: face,
-//             filename: "test-pdsp-face%d-%%02d.json" % face,
-//         },
-//     }, nin=1, nout=0, uses=[anode]) for face in [0,1]];
-
-// local sink =
-//     g.intern(innodes = [blobsplit],
-//              outnodes = [],
-//              centernodes = jsonblobsinks,
-//              edges=
-//              [g.edge(blobsplit, jsonblobsinks[n], n, 0) for n in [0,1]],
-//              name="blobsink");
-             
 
 local clustertap = g.pnode({
     type: "JsonClusterTap",
