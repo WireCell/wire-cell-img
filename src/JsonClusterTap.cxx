@@ -144,6 +144,7 @@ Json::Value  measurement_jsoner(const cluster_node_t& n)
     Json::Value j = Json::arrayValue;
     for (auto ich : *ichv) {
         j.append(ich->ident());
+        ret["wpid"] = ich->planeid().ident(); // last one wins, but they should all be the same
     }
     ret["chids"] = j;
     return ret;
