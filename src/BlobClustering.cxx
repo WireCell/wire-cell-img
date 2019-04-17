@@ -5,7 +5,6 @@
 
 #include <boost/graph/graphviz.hpp>
 
-
 WIRECELL_FACTORY(BlobClustering, WireCell::Img::BlobClustering,
                  WireCell::IClustering, WireCell::IConfigurable)
 

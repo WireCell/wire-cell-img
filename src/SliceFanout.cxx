@@ -3,7 +3,6 @@
 #include "WireCellUtil/NamedFactory.h"
 #include "WireCellUtil/Exceptions.h"
 
-
 WIRECELL_FACTORY(SliceFanout, WireCell::Img::SliceFanout,
                  WireCell::ISliceFanout, WireCell::IConfigurable)
 
