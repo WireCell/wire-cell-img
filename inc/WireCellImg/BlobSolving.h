@@ -28,7 +28,6 @@ namespace WireCell {
             virtual bool operator()(const input_pointer& in, output_pointer& out);
 
         private:
-            double m_threshold;
             
         };
 

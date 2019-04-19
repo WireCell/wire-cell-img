@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 #include <functional>
+#include <unordered_set>
 
 WIRECELL_FACTORY(ClusterSink, WireCell::Img::ClusterSink,
                  WireCell::IClusterSink, WireCell::IConfigurable)
@@ -17,6 +18,7 @@ using namespace WireCell;
 
 Img::ClusterSink::ClusterSink()
     : m_filename("")
+    , m_node_types("bsm")
 {
 }
 
@@ -27,12 +29,18 @@ Img::ClusterSink::~ClusterSink()
 void Img::ClusterSink::configure(const WireCell::Configuration& cfg)
 {
     m_filename = get(cfg, "filename", m_filename);
+    m_node_types = get(cfg, "node_types", m_node_types);
 }
 
 WireCell::Configuration Img::ClusterSink::default_configuration() const
 {
     WireCell::Configuration cfg;
     cfg["filename"] = m_filename;
+
+    // A string with any of characters "wcbsm".  Including wires and
+    // channels tends to make a crazy big plot so by default they are
+    // excluded.
+    cfg["node_types"] = m_node_types;
     return cfg;
 }
 
@@ -102,7 +110,29 @@ bool Img::ClusterSink::operator()(const ICluster::pointer& cluster)
     }
     std::ofstream out(fname.c_str());
     spdlog::info("Writing graphviz to {}", fname);
-    boost::write_graphviz(out, cluster->graph(), label_writer_t{cluster->graph()});
+
+    std::unordered_set<char> keep(m_node_types.begin(), m_node_types.end());
+
+    // use indexed graph basically just for the copy()
+    const cluster_graph_t& gr = cluster->graph();
+    cluster_indexed_graph_t grind;
+
+    for (const auto& v : boost::make_iterator_range(boost::vertices(gr))) {
+        const auto& vobj = gr[v];
+        if (!keep.count(vobj.code())) {
+            continue;
+        }
+        grind.vertex(vobj);
+        for (auto edge : boost::make_iterator_range(boost::out_edges(v, gr))) {
+            auto v2 = boost::target(edge, gr);
+            const auto& vobj2 = gr[v2];
+            if (keep.count(vobj2.code())) {
+                grind.edge(vobj, vobj2);
+            }
+        }
+    }
+    const cluster_graph_t& gr2 = grind.graph();
+    boost::write_graphviz(out, gr2, label_writer_t{gr2});
 
     return true;
 }

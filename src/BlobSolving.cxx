@@ -14,7 +14,6 @@ WIRECELL_FACTORY(BlobSolving, WireCell::Img::BlobSolving,
 using namespace WireCell;
 
 Img::BlobSolving::BlobSolving()
-    : m_threshold(0.0)
 {
 }
 
@@ -24,13 +23,11 @@ Img::BlobSolving::~BlobSolving()
 
 void Img::BlobSolving::configure(const WireCell::Configuration& cfg)
 {
-    m_threshold = get(cfg, "threshold", m_threshold);
 }
 
 WireCell::Configuration Img::BlobSolving::default_configuration() const
 {
     WireCell::Configuration cfg;
-    cfg["threshold"] = m_threshold;
     return cfg;
 }
 
@@ -152,25 +149,6 @@ bool Img::BlobSolving::operator()(const input_pointer& in, output_pointer& out)
         solve_slice(grind, islice);
     }
 
-    // apply user's threshold
-    std::vector<cluster_vertex_t> dead;
-    for (auto iblob : oftype<IBlob::pointer>(grind)) {
-        if (iblob->value() >= m_threshold) {
-            continue;
-        }
-        auto vd = grind.vertex(iblob);
-        dead.push_back(vd);
-    }
-    auto& gr = grind.graph();   // do NOT use grind after this
-    for (auto vd : dead) {
-        // Removing vertices invalidates grind's index.
-        boost::clear_vertex(vd, gr);
-        boost::remove_vertex(vd, gr);
-    }
-    // note, this can leave nodes which are disconnected in some
-    // sense.  Eg, remove all blobs from a slice leaves the s-node
-    // with no edges.  Likewise, m-nodes may be left isolated.
-
-    out = std::make_shared<SimpleCluster>(gr);
+    out = std::make_shared<SimpleCluster>(grind.graph());
     return true;
 }

@@ -194,7 +194,9 @@ local clustertap = g.pnode({
 local clustersink = g.pnode({
     type: "ClusterSink",
     data: {
-        filename: "clusters-%d.dot"
+        filename: "clusters-%d.dot",
+        // node_types: "wcbsm",
+        node_types: "bsm",
     }
 }, nin=1, nout=0);
 
@@ -202,10 +204,11 @@ local graph = g.pipeline([depos, deposio, drifter,
                           deposplat,
                           //bagger, simsn, sigproc,
                           frameio, slices,
-                          blobfinding, blobclustering,
+                          blobfinding,
+                          blobclustering,
                           blobgrouping,
-                          blobsolving,
-                          clustertap,
+//                          blobsolving,
+//                          clustertap,
                           clustersink]);
 
 local cmdline = {

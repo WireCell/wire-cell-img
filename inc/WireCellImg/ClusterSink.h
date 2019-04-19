@@ -20,6 +20,7 @@ namespace WireCell {
             virtual bool operator()(const ICluster::pointer& cluster);
         private:
             std::string m_filename;
+            std::string m_node_types;
         };
     }
 }
