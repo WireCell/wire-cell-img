@@ -207,8 +207,8 @@ local graph = g.pipeline([depos, deposio, drifter,
                           blobfinding,
                           blobclustering,
                           blobgrouping,
-//                          blobsolving,
-//                          clustertap,
+                          blobsolving,
+                          clustertap,
                           clustersink]);
 
 local cmdline = {
