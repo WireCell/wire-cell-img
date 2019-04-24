@@ -47,11 +47,13 @@ WireCell::Configuration Img::JsonClusterTap::default_configuration() const
 }
 
 
+static
 Json::Value size_stringer(const cluster_node_t& n)
 {
     return Json::nullValue;
 }
 
+static
 Json::Value jpoint(const Point& p)
 {
     Json::Value ret;
@@ -61,6 +63,7 @@ Json::Value jpoint(const Point& p)
     return ret;
 }
 
+static
 Json::Value  channel_jsoner(const cluster_node_t& n)
 {
     IChannel::pointer ich = std::get<typename IChannel::pointer>(n.ptr);
@@ -71,6 +74,7 @@ Json::Value  channel_jsoner(const cluster_node_t& n)
     return ret;
 }
 
+static
 Json::Value  wire_jsoner(const cluster_node_t& n)
 {
     IWire::pointer iwire = std::get<typename IWire::pointer>(n.ptr);
