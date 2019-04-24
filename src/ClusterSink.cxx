@@ -46,6 +46,7 @@ WireCell::Configuration Img::ClusterSink::default_configuration() const
 
 typedef std::vector< std::function< std::string(const cluster_node_t& ptr) > > stringers_t;
 
+static
 std::string size_stringer(const cluster_node_t& n)
 {
     size_t sp = std::get<size_t>(n.ptr);    
