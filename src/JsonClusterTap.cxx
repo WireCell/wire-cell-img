@@ -1,6 +1,7 @@
 #include "WireCellImg/JsonClusterTap.h"
 
 #include "WireCellIface/IChannel.h"
+#include "WireCellIface/IAnodeFace.h"
 #include "WireCellIface/IWire.h"
 #include "WireCellIface/IBlob.h"
 #include "WireCellIface/ISlice.h"
@@ -100,10 +101,20 @@ struct blob_jsoner {
 
     Json::Value operator()(const cluster_node_t& n) {
         IBlob::pointer iblob = std::get<typename IBlob::pointer>(n.ptr);
-        const auto& coords = iblob->face()->raygrid();
+        IAnodeFace::pointer iface = iblob->face();
+        IWirePlane::pointer iplane = iface->planes()[2];
+        IWire::pointer iwire = iplane->wires()[0];
+        const double xplane = iwire->center().x();
+
+        // fixme: this is not a particularly portable way to go for all wire geometries.
+        const double xsign = iface->ident() == 0 ? 1.0 : -1.0;
 
         ISlice::pointer islice = iblob->slice();
-        const double x0 = islice->start()*drift_speed; // set X based on time.
+        // set X based on time with knowledge of local drift
+        // direction as given by the face.
+        double x0 = xplane + xsign * islice->start()*drift_speed; 
+
+        const auto& coords = iface->raygrid();
 
         Json::Value ret = Json::objectValue;
         ret["span"] = islice->span()*drift_speed;
