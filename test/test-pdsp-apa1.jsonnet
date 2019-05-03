@@ -112,7 +112,7 @@ local simsn = sim.signal_pipelines[0]; // relative index over all anodes
 // signal processing
 local sp_maker = import 'pgrapher/experiment/pdsp/sp.jsonnet';
 local sp = sp_maker(params, tools, { sparse: true } );
-local sigproc = sp.make_sigproc(anode, apa_index);
+local sigproc = sp.make_sigproc(anode, "sigproc%d"%apa_index);
 
 local frameio = io.numpy.frames(output, tags=frame_tags);
 
