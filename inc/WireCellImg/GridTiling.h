@@ -38,6 +38,7 @@ namespace WireCell {
             size_t m_blobs_seen;
             IAnodePlane::pointer m_anode;
             IAnodeFace::pointer m_face;
+            double m_threshold;
             Log::logptr_t l;
         };
     }

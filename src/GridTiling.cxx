@@ -13,6 +13,7 @@ using namespace WireCell::RayGrid;
 
 Img::GridTiling::GridTiling()
     : m_blobs_seen(0)
+    , m_threshold(0.0)
     , l(Log::logger("img"))
 {
 }
@@ -26,6 +27,7 @@ void Img::GridTiling::configure(const WireCell::Configuration& cfg)
 {
     m_anode = Factory::find_tn<IAnodePlane>(cfg["anode"].asString());
     m_face = m_anode->face(cfg["face"].asInt());
+    m_threshold = get(cfg, "threshold", m_threshold);
 }
 
 WireCell::Configuration Img::GridTiling::default_configuration() const
@@ -33,6 +35,8 @@ WireCell::Configuration Img::GridTiling::default_configuration() const
     Configuration cfg;
     cfg["anode"] = "";          // user must set
     cfg["face"] = 0;            // the face number to focus on
+    // activity must be bigger than this much to consider.
+    cfg["threshold"] = m_threshold;
     return cfg;
 }
 
@@ -106,7 +110,7 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     activities_t activities;
     for (int layer = 0; layer<nlayers; ++layer) {
         auto& m = measures[layer];
-        Activity activity(layer, {m.begin(), m.end()});
+        Activity activity(layer, {m.begin(), m.end()}, 0, m_threshold);
         activities.push_back(activity);
     }
 

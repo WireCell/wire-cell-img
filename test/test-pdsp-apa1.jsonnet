@@ -200,21 +200,49 @@ local clustersink = g.pnode({
     }
 }, nin=1, nout=0);
 
+local magnify_adcs = g.pnode({
+    type: 'MagnifySink',
+    name: 'adcs',
+    data: {
+        output_filename: "test-pdsp-apa1-mag.root",
+        root_file_mode: 'RECREATE',
+        frames: ["orig0"],
+        cmmtree: [],
+        anode: wc.tn(anode),
+    }
+}, nin=1, nout=1, uses=[anode]);
+
+local magnify_sigs = g.pnode({
+    type: 'MagnifySink',
+    name: 'sigs',
+    data: {
+        output_filename: "test-pdsp-apa1-mag.root",
+        root_file_mode: 'UPDATE',
+        frames: [""],
+        cmmtree: [],
+        anode: wc.tn(anode),
+    }
+}, nin=1, nout=1, uses=[anode]);
+
 local graph = g.pipeline([depos, deposio, drifter,
-                          deposplat,
-                          //bagger, simsn, sigproc,
+                          //deposplat,
+                          bagger, simsn,
+                          magnify_adcs,
+                          sigproc,
+                          magnify_sigs,
                           frameio, slices,
                           blobfinding,
                           blobclustering,
-                          blobgrouping,
-                          blobsolving,
+                          //blobgrouping,
+                          //blobsolving,
                           clustertap,
                           clustersink]);
 
 local cmdline = {
     type: "wire-cell",
     data: {
-        plugins: ["WireCellGen", "WireCellPgraph", "WireCellSio", "WireCellSigProc", "WireCellImg"],
+        plugins: ["WireCellGen", "WireCellPgraph", "WireCellSio",
+                  "WireCellSigProc", "WireCellImg", "WireCellRoot"],
         apps: ["Pgrapher"]
     },
 };
