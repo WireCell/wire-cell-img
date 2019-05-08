@@ -2,7 +2,7 @@
 // pristine Jsonnet practices/examples.
 
 // Set to true for DepoSplat fast sim+sigproc, else use full sim/sigproc
-local fast_splat = true;
+local fast_splat = false;
 
 // It sets up PDSP but with only one APA to make test jobs faster.
 
@@ -109,6 +109,8 @@ local deposplat = sim.make_ductor('splat', anode, tools.pirs[0], 'DepoSplat');
 local bagger = sim.make_bagger();
 local simsn = sim.signal_pipelines[0]; // relative index over all anodes
 
+local simulation = if fast_splat then [deposplat] else [bagger, simsn];
+
 // signal processing
 local sp_maker = import 'pgrapher/experiment/pdsp/sp.jsonnet';
 local sp = sp_maker(params, tools, { sparse: true } );
@@ -206,7 +208,7 @@ local magnify_adcs = g.pnode({
     data: {
         output_filename: "test-pdsp-apa1-mag.root",
         root_file_mode: 'RECREATE',
-        frames: ["orig0"],
+        frames: ["orig0"],      // this is 0 even if apa_index is not
         cmmtree: [],
         anode: wc.tn(anode),
     }
@@ -218,15 +220,13 @@ local magnify_sigs = g.pnode({
     data: {
         output_filename: "test-pdsp-apa1-mag.root",
         root_file_mode: 'UPDATE',
-        frames: [""],
+        frames: frame_tags,
         cmmtree: [],
         anode: wc.tn(anode),
     }
 }, nin=1, nout=1, uses=[anode]);
 
-local graph = g.pipeline([depos, deposio, drifter,
-                          //deposplat,
-                          bagger, simsn,
+local graph = g.pipeline([depos, deposio, drifter] + simulation + [
                           magnify_adcs,
                           sigproc,
                           magnify_sigs,
