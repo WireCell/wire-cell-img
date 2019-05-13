@@ -102,8 +102,8 @@ struct blob_jsoner {
     Json::Value operator()(const cluster_node_t& n) {
         IBlob::pointer iblob = std::get<typename IBlob::pointer>(n.ptr);
         IAnodeFace::pointer iface = iblob->face();
-        IWirePlane::pointer iplane = iface->planes()[2];
-        IWire::pointer iwire = iplane->wires()[0];
+        IWirePlane::vector iplanes = iface->planes();
+        IWire::pointer iwire = iplanes[2]->wires()[0];
         const double xplane = iwire->center().x();
 
         // fixme: this is not a particularly portable way to go for all wire geometries.
@@ -131,6 +131,27 @@ struct blob_jsoner {
             jcorners.append(j);
         }
         ret["corners"] = jcorners;
+
+        //-- strip info is redunant with edges connected to wire vertices.
+        // Json::Value jstrips = Json::arrayValue;
+        // for (const auto& strip : blob.strips()) {
+        //     int plane_ind = strip.layer - 2; // fixme
+        //     if (plane_ind <0) { continue; }
+        //     Json ::Value j = Json::objectValue;
+        //     j["wpid"] = iplanes[plane_ind]->planeid().ident();
+        //     j["planeind"] = plane_ind;
+        //     j["wip1"] = strip.bounds.first;
+        //     j["wip2"] = strip.bounds.second;
+        //     Json::Value jwires = Json::arrayValue;
+        //     const auto& wires = iplanes[plane_ind]->wires();
+        //     for (auto wip = strip.bounds.first; wip < strip.bounds.second; ++wip) {
+        //         jwires.append(wires[wip]->ident());
+        //     }
+        //     j["wids"] = jwires;
+        //     jstrips.append(j);
+        // }
+        // ret["strips"] = jstrips;
+
         return ret;
     }
 };

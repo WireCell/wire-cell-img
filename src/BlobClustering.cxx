@@ -103,7 +103,7 @@ void Img::BlobClustering::add_blobs(const input_pointer& newbs)
                 continue; 
             }
             const auto& wires = wire_planes[iplane]->wires();
-            for (int wip=strip.bounds.first; wip < strip.bounds.second; ++wip) {
+            for (int wip=strip.bounds.first; wip < strip.bounds.second and wip < wires.size(); ++wip) {
                 auto iwire = wires[wip];
                 m_grind.edge(iblob, iwire);
             }

@@ -107,7 +107,7 @@ local deposplat = sim.make_ductor('splat', anode, tools.pirs[0], 'DepoSplat');
 
 // full sim
 local bagger = sim.make_bagger();
-local simsn = sim.signal_pipelines[0]; // relative index over all anodes
+local simsn = sim.splusn_pipelines[0]; // relative index over all anodes
 
 local simulation = if fast_splat then [deposplat] else [bagger, simsn];
 
@@ -233,8 +233,8 @@ local graph = g.pipeline([depos, deposio, drifter] + simulation + [
                           frameio, slices,
                           blobfinding,
                           blobclustering,
-                          //blobgrouping,
-                          //blobsolving,
+                          blobgrouping,
+                          blobsolving,
                           clustertap,
                           clustersink]);
 

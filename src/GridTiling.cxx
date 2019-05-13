@@ -55,32 +55,39 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     SimpleBlobSet* sbs = new SimpleBlobSet(sbs_ident, slice);
     out = IBlobSet::pointer(sbs);
 
-    const int nlayers = m_face->nplanes()+2;
+    const int nbounds_layers = 2;
+    const int nlayers = m_face->nplanes() + nbounds_layers;
     std::vector< std::vector<Activity::value_t> > measures(nlayers);
-    measures[0].push_back(1);   // assume first to layers in RayGrid::Coordinates
+    measures[0].push_back(1);   // assume first two layers in RayGrid::Coordinates
     measures[1].push_back(1);   // are for horiz/vert bounds
 
-    const auto face = m_face->ident();
+    const auto anodeid = m_anode->ident();
+    const auto faceid = m_face->ident();
     auto chvs = slice->activity();
     if (chvs.empty()) {
-        SPDLOG_LOGGER_TRACE(l,"GridTiling: face:{} slice:{} no activity", face,  slice->ident());
+        SPDLOG_LOGGER_TRACE(l,"GridTiling: anode:{} face:{} slice:{} no activity",
+                            anodeid, faceid,  slice->ident());
         return true;
     }
 
     const int nactivities = slice->activity().size();
     int total_activity=0;
     if (nactivities < m_face->nplanes()) {
-        SPDLOG_LOGGER_TRACE(l,"GridTiling: too few activities given");
+        SPDLOG_LOGGER_TRACE(l,"GridTiling: anode:{} face:{} slice:{} too few activities given",
+                            anodeid, faceid, slice->ident());
         return true;
     }
 
     for (const auto& chv : slice->activity()) {
         for (const auto& wire : chv.first->wires()) {
-            if (wire->planeid().face() != face) {
+            auto wpid = wire->planeid();
+            if (wpid.face() != faceid) {
+                //l->trace("anode:{} face:{} slice:{} chan:{} wip:{} q:{} skip {}", anodeid, faceid, slice->ident(), chv.first->ident(), wire->index(), chv.second, wpid);
                 continue;
             }
+            //l->trace("anode:{} face:{} slice:{} chan:{} wip:{} q:{} keep {}", anodeid, faceid, slice->ident(), chv.first->ident(), wire->index(), chv.second, wpid);
             const int pit_ind = wire->index();
-            const int layer = 2 + wire->planeid().index();
+            const int layer = nbounds_layers + wire->planeid().index();
             auto& m = measures[layer];
             if (pit_ind < 0) {
                 continue;
@@ -94,16 +101,23 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     }
 
     if (!total_activity) {
-        SPDLOG_LOGGER_TRACE(l,"GridTiling: {} no activity", slice->ident());
-        // fixme: need to send empty IBlob else we create EOS
+        SPDLOG_LOGGER_TRACE(l,"GridTiling: anode:{} face:{} slice:{} no activity",
+                            anodeid, faceid, slice->ident());
         return true;
     }
     size_t nactive_layers = 0;
-    for (const auto& blah : measures) {
-        if (blah.empty()) { continue; }
+    for (size_t ind = 0; ind<measures.size(); ++ind) {
+        const auto& blah = measures[ind];
+        if (blah.empty()) {
+            SPDLOG_LOGGER_TRACE(l,"GridTiling: anode:{} face:{} slice:{} empty active layer ind={} out of {}",
+                                anodeid, faceid, slice->ident(), ind, measures.size());
+            continue;
+        }
         ++nactive_layers;
     }
     if (nactive_layers != measures.size()) {
+        SPDLOG_LOGGER_TRACE(l,"GridTiling: anode:{} face:{} slice:{} missing active layers {}  != {}, {} activities",
+                            anodeid, faceid, slice->ident(), nactive_layers, measures.size(), nactivities);
         return true;
     }
 
@@ -111,9 +125,12 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
     for (int layer = 0; layer<nlayers; ++layer) {
         auto& m = measures[layer];
         Activity activity(layer, {m.begin(), m.end()}, 0, m_threshold);
+        SPDLOG_LOGGER_TRACE(l, "L{} A:{}", layer, activity.as_string());
         activities.push_back(activity);
     }
 
+    SPDLOG_LOGGER_TRACE(l,"GridTiling: anode:{} face:{} slice:{} making blobs",
+                        anodeid, faceid, slice->ident());
     auto blobs = make_blobs(m_face->raygrid(), activities);
 
     const float blob_value = 0.0; // tiling doesn't consider particular charge
@@ -121,7 +138,8 @@ bool Img::GridTiling::operator()(const input_pointer& slice, output_pointer& out
         SimpleBlob* sb = new SimpleBlob(m_blobs_seen++, blob_value, 0.0, blob, slice, m_face);
         sbs->m_blobs.push_back(IBlob::pointer(sb));
     }
-    SPDLOG_LOGGER_TRACE(l,"GridTiling: found {} blobs in slice {}", sbs->m_blobs.size(), slice->ident());
+    SPDLOG_LOGGER_TRACE(l,"GridTiling: anode:{} face:{} slice:{} found {} blobs",
+                        anodeid, faceid, slice->ident(), sbs->m_blobs.size());
 
     return true;
 }
